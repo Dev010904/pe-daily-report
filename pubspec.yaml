@@ -1,0 +1,44 @@
+﻿name: daily_report
+description: "Daily Report - Panchal Enterprise"
+publish_to: 'none'
+
+version: 2.4.0+18
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.4.4+1
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  share_plus: ^13.3.1
+  intl: ^0.20.3
+  supabase_flutter: ^2.18.3
+  flutter_secure_storage: ^11.2.0
+  web: ^1.1.1
+  pdf: ^3.13.1
+  http: ^1.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+    - assets/fonts/
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/logo.png"
+  adaptive_icon_background: "assets/icon/icon_bg.png"
+  adaptive_icon_foreground: "assets/icon/icon_fg.png"
+  min_sdk_android: 21

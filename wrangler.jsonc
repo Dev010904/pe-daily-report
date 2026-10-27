@@ -1,0 +1,17 @@
+{
+  // PC website for Daily Report (Cloudflare).
+  // Deploy: tool/deploy_web.ps1 (builds the site, adds the APK, deploys)
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pe-daily-report",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "./build/web",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  }
+}
