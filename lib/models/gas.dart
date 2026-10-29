@@ -22,7 +22,6 @@ const List<Gas> kGases = [
   Gas('CO2', 'CO2'),
   Gas('AR_COMM', 'ARGON', group: 'AR'),
   Gas('AR_MIX', 'AR Mix.', group: 'AR'),
-  Gas('AR_SPL', 'AR SPL', group: 'AR'),
   Gas('DA', 'DA'),
   Gas('N2_COMM', 'NITROGEN', group: 'N2'),
   Gas('N2_0AIR', 'N2 0 AIR', group: 'N2'),
@@ -31,7 +30,13 @@ const List<Gas> kGases = [
   Gas('LC', 'LC'),
 ];
 
-final Map<String, Gas> _byCode = {for (final g in kGases) g.code: g};
+/// AR SPL is no longer a gas (counted as ARGON since 2026-10-29); kept only
+/// to read old records (see logic/argon_spl.dart).
+const Gas kRetiredArgonSpl = Gas('AR_SPL', 'AR SPL', group: 'AR');
+
+final Map<String, Gas> _byCode = {
+  for (final g in [...kGases, kRetiredArgonSpl]) g.code: g,
+};
 
 Gas? gasByCode(String code) => _byCode[code];
 

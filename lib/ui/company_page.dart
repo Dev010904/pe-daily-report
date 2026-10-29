@@ -327,6 +327,7 @@ class _CompanyPageState extends State<CompanyPage> {
                         line: l,
                         loanFull: loanText(store, l.entry.loanFull),
                         loanEmpty: loanText(store, l.entry.loanEmpty),
+                        remarks: remarksText(l.entry.remarks, store: store),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -417,11 +418,15 @@ class _LineCard extends StatelessWidget {
   /// Loan cylinders in the entry, as text ("-" when none).
   final String loanFull;
   final String loanEmpty;
+
+  /// Line remarks as text ("" when none).
+  final String remarks;
   const _LineCard({
     required this.line,
     required this.onTap,
     this.loanFull = '-',
     this.loanEmpty = '-',
+    this.remarks = '',
   });
 
   @override
@@ -514,6 +519,18 @@ class _LineCard extends StatelessWidget {
                     ],
                   ),
                 ],
+              if (remarks.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Remarks:  $remarks',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.navy,
+                  ),
+                ),
+              ],
               if (e.cash.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(

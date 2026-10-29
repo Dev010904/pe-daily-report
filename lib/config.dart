@@ -9,10 +9,10 @@ const String kSupabaseKey = 'sb_publishable_BAWkjUDeegmjxR6hGmNOAg_k7-8CgHJ';
 const bool kDemoMode = bool.fromEnvironment('PE_DEMO');
 
 /// Shown in Settings; keep the same as `version:` in pubspec.yaml.
-const String _version = '2.4.0';
+const String _version = '2.4.1';
 
 /// Build number (the part after + in pubspec.yaml). Updates compare it.
-const int _build = 18;
+const int _build = 19;
 
 // Only a demo (test) build may pretend to be another version, to test
 // updating; a real build always uses the numbers above.

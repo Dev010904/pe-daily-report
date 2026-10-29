@@ -79,6 +79,10 @@ class Entry {
   PlantQty loanFull;
   PlantQty loanEmpty;
 
+  /// A remark on a line of the entry, by the line's gas code (loan lines:
+  /// "gas|plantId"), e.g. "ARGON SPL".
+  Map<String, String> remarks;
+
   /// Parts written by a newer version of the app, kept as they are.
   final Map<String, dynamic> _extra;
 
@@ -94,8 +98,10 @@ class Entry {
     List<CashItem>? cash,
     PlantQty? loanFull,
     PlantQty? loanEmpty,
+    Map<String, String>? remarks,
     Map<String, dynamic>? extra,
-  }) : full = full ?? {},
+  }) : remarks = remarks ?? {},
+       full = full ?? {},
        empty = empty ?? {},
        cash = cash ?? [],
        loanFull = loanFull ?? {},
@@ -128,6 +134,7 @@ class Entry {
     'cash',
     'loanFull',
     'loanEmpty',
+    'remarks',
     'date',
   };
 
@@ -144,6 +151,7 @@ class Entry {
     if (cash.isNotEmpty) 'cash': [for (final c in cash) c.toJson()],
     if (loanFull.isNotEmpty) 'loanFull': loanFull,
     if (loanEmpty.isNotEmpty) 'loanEmpty': loanEmpty,
+    if (remarks.isNotEmpty) 'remarks': remarks,
   };
 
   factory Entry.fromJson(String id, Map<String, dynamic> j) => Entry(
@@ -161,6 +169,12 @@ class Entry {
     ],
     loanFull: plantQty(j['loanFull']),
     loanEmpty: plantQty(j['loanEmpty']),
+    remarks: {
+      if (j['remarks'] is Map)
+        for (final e in (j['remarks'] as Map).entries)
+          if (e.value is String && (e.value as String).trim().isNotEmpty)
+            e.key.toString(): e.value as String,
+    },
     extra: {
       for (final e in j.entries)
         if (!_known.contains(e.key)) e.key: e.value,

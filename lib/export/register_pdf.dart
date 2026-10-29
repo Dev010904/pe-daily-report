@@ -7,6 +7,7 @@ import '../models/day_data.dart';
 import '../models/gas.dart';
 import '../util/dates.dart';
 import 'company_pdf.dart';
+import '../ui/loan_text.dart';
 import 'pdf_kit.dart';
 
 String registerPdfFileName(String from, String to) =>
@@ -427,7 +428,13 @@ pw.Widget _register(AppStore store, List<String> dates) {
           children: [
             cell(fmtDmy(parseDayKey(d))),
             billCell(e, size: 9),
-            cell(e.company, bold: true, align: pw.TextAlign.left),
+            cell(
+            e.remarks.isEmpty
+                ? e.company
+                : '${e.company}\nRemarks: ${remarksText(e.remarks, store: store)}',
+            bold: true,
+            align: pw.TextAlign.left,
+          ),
             cell(e.challan.isEmpty ? '-' : e.challan),
             cell(
               qtyAndLoan(store, e.full, e.loanFull, sep: ',  '),

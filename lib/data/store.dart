@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
+import '../logic/argon_spl.dart';
 import '../logic/ledger.dart';
 import '../logic/plant_report.dart';
 import '../logic/stock.dart';
@@ -48,6 +51,36 @@ class AppStore extends ChangeNotifier {
   void _onRepo() {
     if (repo.dataVersion != _seen) _rebuild();
     notifyListeners();
+    _maybeSaveSplMerge();
+  }
+
+  // ------------------------------------------------- AR SPL -> ARGON
+
+  /// Records that still say AR SPL, as they will be saved once merged into
+  /// ARGON (empty when there are none). The screens already show them merged.
+  List<Rec> _splRecords = const [];
+  bool _splSaving = false;
+
+  /// True while old AR SPL records have not been rewritten yet.
+  bool get hasUnsavedSplMerge => _splRecords.isNotEmpty;
+
+  /// Writes the merged records, right after a sync has brought this device
+  /// up to date (so nothing newer from another device is overwritten).
+  void _maybeSaveSplMerge() {
+    if (_splRecords.isEmpty || _splSaving) return;
+    if (repo.state != SyncState.idle || repo.lastSynced == null) return;
+    scheduleMicrotask(saveSplMerge);
+  }
+
+  /// Rewrites every record that still uses AR SPL (ARGON from now on).
+  Future<void> saveSplMerge() async {
+    if (_splRecords.isEmpty || _splSaving) return;
+    _splSaving = true;
+    try {
+      await repo.put(_splRecords);
+    } finally {
+      _splSaving = false;
+    }
   }
 
   void _rebuild() {
@@ -107,7 +140,40 @@ class AppStore extends ChangeNotifier {
       final day = DayData.fromMeta(date, metas[date] ?? const {}, list);
       if (!day.isEmpty) _days[date] = day;
     }
+    _mergeSpl(metas);
     _book = null;
+  }
+
+  /// Counts old AR SPL as ARGON (see logic/argon_spl.dart) and keeps the
+  /// records to rewrite.
+  void _mergeSpl(Map<String, Map<String, dynamic>> metas) {
+    final out = <Rec>[];
+    for (final c in _companies.values) {
+      if (c.opening.containsKey(kSpl)) {
+        c.opening = mergeSplOpening(c.opening);
+        out.add(Rec(Kind.company, c.id, c.toJson()));
+      }
+    }
+    if (daysUseSpl(_days)) {
+      final merged = mergeSplDays(_days);
+      merged.forEach((date, d) {
+        final was = _days[date]!;
+        final meta = d.metaJson();
+        if (jsonEncode(meta) != jsonEncode(was.metaJson())) {
+          out.add(Rec(Kind.day, date, meta, deleted: d.metaEmpty));
+        }
+        for (var i = 0; i < d.entries.length; i++) {
+          if (entryUsesSpl(was.entries[i])) {
+            final e = d.entries[i];
+            out.add(Rec(Kind.entry, e.id, {...e.toJson(), 'date': date}));
+          }
+        }
+      });
+      _days
+        ..clear()
+        ..addAll(merged);
+    }
+    _splRecords = out;
   }
 
   // ---------------------------------------------------------------- days

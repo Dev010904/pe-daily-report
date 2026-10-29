@@ -456,6 +456,7 @@ StockDay computeDay(
   DayData? day, {
   required bool hasPrevious,
   Map<String, PlantQty> prevLoanCompanies = const {},
+  List<Gas> gases = kGases,
 }) {
   final d = day ?? DayData(date);
   final sales = sumFull(d);
@@ -466,7 +467,7 @@ StockDay computeDay(
   final rows = <StockRow>[];
   final closing = <String, GasState>{};
 
-  for (final gas in kGases) {
+  for (final gas in gases) {
     final p = prev[gas.code] ?? const GasState();
     final openFull = d.openFull[gas.code] ?? p.full;
     final openGodown = d.openEmpty[gas.code] ?? p.godown;
@@ -659,7 +660,11 @@ class StockBook {
   final Map<String, Map<String, GasState>> _closing = {};
   final Map<String, Map<String, PlantQty>> _loanCos = {};
 
-  StockBook(Map<String, DayData> days)
+  /// The gases worked out (normally all; reading old AR SPL records also
+  /// uses that retired gas).
+  final List<Gas> gases;
+
+  StockBook(Map<String, DayData> days, {this.gases = kGases})
     : _days = days,
       _dates = days.keys.toList()..sort() {
     var state = <String, GasState>{};
@@ -672,6 +677,7 @@ class StockBook {
         _days[date],
         hasPrevious: i > 0,
         prevLoanCompanies: loanCos,
+        gases: gases,
       );
       state = day.closing;
       loanCos = day.loanAtCompanies;
@@ -704,6 +710,7 @@ class StockBook {
       _days[date],
       hasPrevious: i >= 0,
       prevLoanCompanies: i >= 0 ? _loanCos[_dates[i]]! : const {},
+      gases: gases,
     );
   }
 }

@@ -6,6 +6,7 @@ import '../logic/stock.dart';
 import '../models/day_data.dart';
 import '../models/gas.dart';
 import '../util/dates.dart';
+import '../ui/loan_text.dart';
 import 'pdf_kit.dart';
 
 String dayPdfFileName(List<String> dates) {
@@ -360,7 +361,13 @@ List<pw.Widget> _supplyTable(AppStore store, DayData day) {
         children: [
           billCell(e),
           cell('${i + 1}'),
-          cell(e.company, bold: true, align: pw.TextAlign.left),
+          cell(
+            e.remarks.isEmpty
+                ? e.company
+                : '${e.company}\nRemarks: ${remarksText(e.remarks, store: store)}',
+            bold: true,
+            align: pw.TextAlign.left,
+          ),
           cell(qtyAndLoan(store, e.full, e.loanFull), align: pw.TextAlign.left),
           cell(e.challan.isEmpty ? '-' : e.challan),
           empty(

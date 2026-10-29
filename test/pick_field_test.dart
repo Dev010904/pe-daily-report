@@ -58,6 +58,7 @@ void main() {
     await type('3');
     await enter();
     await enter();
+    await enter(); // remarks: none
     await enter(); // to cash
     await type('dep');
     await enter();

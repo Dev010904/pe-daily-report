@@ -384,6 +384,10 @@ class GasLine {
   final FocusNode gasNode = FocusNode(debugLabel: 'gas');
   final List<FocusNode> qtyNodes;
 
+  /// Remark on this line (only where the list shows remarks).
+  final TextEditingController remark = TextEditingController();
+  final FocusNode remarkNode = FocusNode(debugLabel: 'remark');
+
   GasLine(int columns, {this.gas, List<int>? values})
     : qty = [
         for (var i = 0; i < columns; i++)
@@ -397,6 +401,8 @@ class GasLine {
 
   void dispose() {
     gasNode.dispose();
+    remark.dispose();
+    remarkNode.dispose();
     for (final c in qty) {
       c.dispose();
     }
@@ -461,6 +467,21 @@ class GasLines {
 
   int total(int i) => column(i).values.fold(0, (a, b) => a + b);
 
+  /// Puts saved remarks (gas -> text) on their lines.
+  void setRemarks(Map<String, String> remarks) {
+    for (final l in lines) {
+      final r = l.gas == null ? null : remarks[l.gas];
+      if (r != null) l.remark.text = r;
+    }
+  }
+
+  /// gas -> remark, for lines with a gas and a remark.
+  Map<String, String> remarks() => {
+    for (final l in lines)
+      if (l.gas != null && l.remark.text.trim().isNotEmpty)
+        l.gas!: l.remark.text.trim(),
+  };
+
   Set<String> get usedGases => {for (final l in lines) ?l.gas};
 
   void dispose() {
@@ -488,6 +509,9 @@ class GasLinesEditor extends StatefulWidget {
   /// Gas boxes are choose-only (picked from the list, never written).
   final bool chooseOnly;
 
+  /// A Remarks box on every line, after the numbers.
+  final bool showRemarks;
+
   const GasLinesEditor({
     super.key,
     required this.lines,
@@ -498,6 +522,7 @@ class GasLinesEditor extends StatefulWidget {
     this.autofocusFirst = false,
     this.skipGases = const {},
     this.chooseOnly = false,
+    this.showRemarks = false,
   });
 
   @override
@@ -532,6 +557,15 @@ class GasLinesEditorState extends State<GasLinesEditor> {
       _focus(_lines[i].qtyNodes[col + 1]);
       return;
     }
+    if (widget.showRemarks) {
+      _focus(_lines[i].remarkNode);
+      return;
+    }
+    _nextLine(i);
+  }
+
+  /// On to the next line's gas box (a new empty line is always there).
+  void _nextLine(int i) {
     setState(widget.lines.ensureBlank);
     _focus(_lines[i + 1].gasNode);
   }
@@ -596,7 +630,14 @@ class GasLinesEditorState extends State<GasLinesEditor> {
           fontSize: narrow ? 12.5 : 14,
         );
         // # + gas + numbers + remove button + paddings and the focus bar.
-        final natural = 30 + _gasW + cols * (qtyW + 12) + 40 + 34.0;
+        final remarks = widget.showRemarks;
+        final natural =
+            30 +
+            _gasW +
+            cols * (qtyW + 12) +
+            (remarks ? _remarkW + 8 : 0) +
+            40 +
+            34.0;
         return Align(
           alignment: Alignment.topLeft,
           child: SizedBox(
@@ -629,6 +670,14 @@ class GasLinesEditorState extends State<GasLinesEditor> {
                               style: head,
                             ),
                             width: qtyW + 12,
+                          ),
+                        if (remarks && !narrow)
+                          SizedBox(
+                            width: _remarkW + 8,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Text('Remarks', style: head),
+                            ),
                           ),
                         const SizedBox(width: 40),
                       ],
@@ -669,6 +718,8 @@ class GasLinesEditorState extends State<GasLinesEditor> {
                             ),
                             width: qtyW + 12,
                           ),
+                        if (remarks && !narrow)
+                          const SizedBox(width: _remarkW + 8),
                         const SizedBox(width: 40),
                       ],
                     ),
@@ -683,6 +734,40 @@ class GasLinesEditorState extends State<GasLinesEditor> {
   }
 
   static const double _gasW = 210;
+  static const double _remarkW = 190;
+
+  Widget _remarkField(int i, GasLine l, bool blank) => Opacity(
+    opacity: blank ? 0.35 : 1,
+    child: TextField(
+      key: Key('lineRemark$i'),
+      controller: l.remark,
+      focusNode: l.remarkNode..skipTraversal = blank,
+      textInputAction: TextInputAction.next,
+      textCapitalization: TextCapitalization.characters,
+      maxLength: 60,
+      onChanged: (_) => widget.onChanged(),
+      onSubmitted: (_) {
+        if (!onTopPage(context)) {
+          reclaimDialogFocus();
+          return;
+        }
+        _nextLine(i);
+      },
+      onEditingComplete: () {},
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      decoration: const InputDecoration(
+        isDense: true,
+        counterText: '',
+        hintText: 'Remarks',
+        hintStyle: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: Color(0xFFADB5C2),
+        ),
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      ),
+    ),
+  );
 
   Widget _row(
     int i,
@@ -695,82 +780,118 @@ class GasLinesEditorState extends State<GasLinesEditor> {
     return FocusRow(
       stripe: i.isOdd ? const Color(0xFFF7F9FC) : null,
       padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 5),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 30,
-            child: Text(
-              '${i + 1}',
-              style: const TextStyle(fontSize: 15, color: AppColors.muted),
-            ),
-          ),
-          cell(
-            GasPickField(
-              key: Key('gasPick$i'),
-              value: l.gas,
-              focusNode: l.gasNode,
-              autofocus: widget.autofocusFirst && i == 0,
-              skip: {...widget.lines.usedGases, ...widget.skipGases},
-              chooseOnly: widget.chooseOnly,
-              pool: widget.lines.pool,
-              hint: blank
-                  ? (i == 0
-                        ? (widget.chooseOnly ? 'Choose gas' : 'Type gas name')
-                        : (widget.chooseOnly
-                              ? 'Choose next gas'
-                              : 'Next gas, or Enter to finish'))
-                  : 'Type gas name',
-              onPicked: (code) => _picked(i, code),
-              onEnd: blank ? widget.onEndOfList : null,
-              onClear: blank ? null : () => _remove(i),
-            ),
-            width: narrow ? null : _gasW,
-          ),
-          for (var c = 0; c < widget.lines.columns; c++)
-            cell(
-              Center(
-                // The boxes are always there (also on the empty line), so
-                // the cursor can jump in the moment a gas is picked and no
-                // typed digit is lost. Tab skips them until then.
-                child: Opacity(
-                  opacity: blank ? 0.35 : 1,
-                  child: QtyField(
-                    key: Key('lineQty${i}_$c'),
-                    controller: l.qty[c],
-                    focusNode: l.qtyNodes[c]..skipTraversal = blank,
-                    color: widget.colors[c],
-                    fieldWidth: qtyW,
-                    onChanged: () {
-                      setState(() {});
-                      widget.onChanged();
-                    },
-                    onEnter: () => _qtyEnter(i, c),
-                    onUp: () => _up(i, c),
-                    onDown: () => _down(i, c),
-                  ),
-                ),
+      child: _withRemark(
+        i,
+        l,
+        blank,
+        narrow,
+        Row(
+          children: [
+            SizedBox(
+              width: 30,
+              child: Text(
+                '${i + 1}',
+                style: const TextStyle(fontSize: 15, color: AppColors.muted),
               ),
-              width: qtyW + 12,
             ),
-          SizedBox(
-            width: 40,
-            child: blank
-                ? null
-                : ExcludeFocus(
-                    child: IconButton(
-                      key: Key('lineDel$i'),
-                      tooltip: 'Remove this gas',
-                      onPressed: () => _remove(i),
-                      icon: const Icon(
-                        Icons.close,
-                        color: AppColors.danger,
-                        size: 20,
-                      ),
+            cell(
+              GasPickField(
+                key: Key('gasPick$i'),
+                value: l.gas,
+                focusNode: l.gasNode,
+                autofocus: widget.autofocusFirst && i == 0,
+                skip: {...widget.lines.usedGases, ...widget.skipGases},
+                chooseOnly: widget.chooseOnly,
+                pool: widget.lines.pool,
+                hint: blank
+                    ? (i == 0
+                          ? (widget.chooseOnly ? 'Choose gas' : 'Type gas name')
+                          : (widget.chooseOnly
+                                ? 'Choose next gas'
+                                : 'Next gas, or Enter to finish'))
+                    : 'Type gas name',
+                onPicked: (code) => _picked(i, code),
+                onEnd: blank ? widget.onEndOfList : null,
+                onClear: blank ? null : () => _remove(i),
+              ),
+              width: narrow ? null : _gasW,
+            ),
+            for (var c = 0; c < widget.lines.columns; c++)
+              cell(
+                Center(
+                  // The boxes are always there (also on the empty line), so
+                  // the cursor can jump in the moment a gas is picked and no
+                  // typed digit is lost. Tab skips them until then.
+                  child: Opacity(
+                    opacity: blank ? 0.35 : 1,
+                    child: QtyField(
+                      key: Key('lineQty${i}_$c'),
+                      controller: l.qty[c],
+                      focusNode: l.qtyNodes[c]..skipTraversal = blank,
+                      color: widget.colors[c],
+                      fieldWidth: qtyW,
+                      onChanged: () {
+                        setState(() {});
+                        widget.onChanged();
+                      },
+                      onEnter: () => _qtyEnter(i, c),
+                      onUp: () => _up(i, c),
+                      onDown: () => _down(i, c),
                     ),
                   ),
-          ),
-        ],
+                ),
+                width: qtyW + 12,
+              ),
+            SizedBox(
+              width: 40,
+              child: blank
+                  ? null
+                  : ExcludeFocus(
+                      child: IconButton(
+                        key: Key('lineDel$i'),
+                        tooltip: 'Remove this gas',
+                        onPressed: () => _remove(i),
+                        icon: const Icon(
+                          Icons.close,
+                          color: AppColors.danger,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  /// The remark box: in the row on a wide screen, under it on a phone.
+  Widget _withRemark(int i, GasLine l, bool blank, bool narrow, Row row) {
+    if (!widget.showRemarks) return row;
+    if (narrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          row,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(30, 4, 40, 0),
+            child: _remarkField(i, l, blank),
+          ),
+        ],
+      );
+    }
+    final kids = [...row.children];
+    // Before the remove button (the last one).
+    kids.insert(
+      kids.length - 1,
+      SizedBox(
+        width: _remarkW + 8,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: _remarkField(i, l, blank),
+        ),
+      ),
+    );
+    return Row(children: kids);
   }
 }

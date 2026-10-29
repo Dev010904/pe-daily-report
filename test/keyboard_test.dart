@@ -128,9 +128,15 @@ void main() {
     expect(focusedKey(), 'lineQty0_1');
     await type(t, '3');
     await enter(t);
+    // After the numbers: the line's Remarks box, then the next gas.
+    expect(focusedKey(), 'lineRemark0');
+    await type(t, 'urgent');
+    await enter(t);
     expect(focusedKey(), 'gasPick1');
     await press(t, LogicalKeyboardKey.arrowUp); // (list) - Backspace goes back
     await press(t, LogicalKeyboardKey.backspace);
+    expect(focusedKey(), 'lineRemark0');
+    await press(t, LogicalKeyboardKey.arrowUp);
     expect(focusedKey(), 'lineQty0_1');
     await press(t, LogicalKeyboardKey.arrowUp);
     expect(focusedKey(), 'bill'); // first line: Up leaves the list
@@ -139,12 +145,14 @@ void main() {
     await enter(t); // Oxygen stays
     await enter(t);
     await enter(t);
+    await enter(t); // remark stays
     expect(focusedKey(), 'gasPick1');
     await enter(t); // empty gas = End of List: on to cash
     expect(focusedKey(), 'cashType0');
     await enter(t); // no cash: save
     expect(find.text('Save this entry?'), findsOneWidget);
     expect(find.text('Oxygen 4'), findsOneWidget);
+    expect(find.text('Oxygen: urgent'), findsOneWidget); // the remark
     await press(t, LogicalKeyboardKey.enter); // Yes
     expect(find.byKey(const Key('savedBanner')), findsOneWidget);
     expect(focusedKey(), 'company'); // ready for the next company
@@ -366,6 +374,7 @@ void main() {
       await type(t, '22');
       await enter(t);
       await enter(t);
+      await enter(t); // remarks: none
       expect(focusedKey(), 'gasPick1');
       await enter(t); // End of List
       expect(focusedKey(), 'cashType0');
@@ -391,6 +400,8 @@ void main() {
       // Fix the numbers by going back: 0 full and 3 empty instead.
       await press(t, LogicalKeyboardKey.backspace); // gas line 2
       expect(focusedKey(), 'gasPick1');
+      await press(t, LogicalKeyboardKey.backspace); // Oxygen remark (empty)
+      expect(focusedKey(), 'lineRemark0');
       await press(t, LogicalKeyboardKey.backspace); // Oxygen empty (empty box)
       expect(focusedKey(), 'lineQty0_1');
       await press(t, LogicalKeyboardKey.backspace); // Oxygen full
@@ -399,6 +410,8 @@ void main() {
       await enter(t);
       expect(focusedKey(), 'lineQty0_1');
       await type(t, '3');
+      await enter(t);
+      expect(focusedKey(), 'lineRemark0');
       await enter(t);
       expect(focusedKey(), 'gasPick1');
       await enter(t);
@@ -440,6 +453,7 @@ void main() {
       await enter(t);
       await type(t, '1');
       await enter(t);
+      await enter(t); // remarks: none
       await type(t, 'co2');
       await enter(t);
       expect(focusedKey(), 'lineQty1_0');
@@ -794,6 +808,7 @@ void main() {
       await type(t, '10');
       await enter(t);
       await enter(t); // no loan empties back
+      await enter(t); // remarks: none
       await enter(t); // end of the loan list: to cash
       expect(focusedKey(), 'cashType0');
       await enter(t);

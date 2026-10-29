@@ -2,7 +2,7 @@
 description: "Daily Report - Panchal Enterprise"
 publish_to: 'none'
 
-version: 2.4.0+18
+version: 2.4.1+19
 
 environment:
   sdk: ^3.13.5

@@ -119,6 +119,10 @@ class _EntryPageState extends State<EntryPage> {
           g.code: [e!.full[g.code] ?? 0, e.empty[g.code] ?? 0],
     });
     _loan = _loanLines(e);
+    if (e != null) {
+      _lines.setRemarks(e.remarks);
+      _loan?.setRemarks(e.remarks);
+    }
     markField(_billNode);
     if (e != null) {
       _companyId = e.companyId;
@@ -291,6 +295,12 @@ class _EntryPageState extends State<EntryPage> {
     }, pool);
   }
 
+  /// Remarks of every line: our gases by gas code, loan lines by their code.
+  Map<String, String> get _remarks => {
+    ..._lines.remarks(),
+    ...?_loan?.remarks(),
+  };
+
   PlantQty get _loanFull =>
       _loan == null ? {} : loanFromCodes(_loan!.column(0));
   PlantQty get _loanEmpty =>
@@ -412,6 +422,7 @@ class _EntryPageState extends State<EntryPage> {
         empty: _empty,
         loanFull: loanText(store, _loanFull),
         loanEmpty: loanText(store, _loanEmpty),
+        remarks: remarksText(_remarks),
         cash: cash!,
         oldDate: old ? widget.date : null,
       ),
@@ -443,6 +454,7 @@ class _EntryPageState extends State<EntryPage> {
       cash: cash!,
       loanFull: _loanFull,
       loanEmpty: _loanEmpty,
+      remarks: _remarks,
     );
     final i = day.entries.indexWhere((x) => x.id == entry.id);
     if (i >= 0) {
@@ -569,6 +581,7 @@ class _EntryPageState extends State<EntryPage> {
                   titles: const ['Full supplied', 'Empty received'],
                   colors: const [AppColors.full, AppColors.empty],
                   onChanged: _touch,
+                  showRemarks: true,
                   onEndOfList: _afterGas,
                 ),
                 if (_loan != null) ...[
@@ -580,6 +593,7 @@ class _EntryPageState extends State<EntryPage> {
                     titles: const ['Loan full supplied', 'Loan empty received'],
                     colors: const [AppColors.loan, AppColors.loan],
                     onChanged: _touch,
+                    showRemarks: true,
                     onEndOfList: _toCash,
                   ),
                 ],
@@ -1258,6 +1272,9 @@ class _Summary extends StatelessWidget {
   /// Loan cylinders, as text ("-" when none).
   final String loanFull;
   final String loanEmpty;
+
+  /// Line remarks as text ("" when none).
+  final String remarks;
   final List<CashItem> cash;
   final String? oldDate;
 
@@ -1270,6 +1287,7 @@ class _Summary extends StatelessWidget {
     required this.empty,
     this.loanFull = '-',
     this.loanEmpty = '-',
+    this.remarks = '',
     required this.cash,
     this.oldDate,
   });
@@ -1350,6 +1368,7 @@ class _Summary extends StatelessWidget {
             line('LOAN full supplied', loanFull, color: AppColors.loan),
           if (loanEmpty != '-')
             line('LOAN empty back', loanEmpty, color: AppColors.loan),
+          if (remarks.isNotEmpty) line('Remarks', remarks, color: AppColors.navy),
           if (cash.isNotEmpty)
             line(
               'Cash',

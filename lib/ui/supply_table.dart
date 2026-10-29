@@ -271,12 +271,28 @@ class SupplyTable extends StatelessWidget {
                             Flexible(
                               child: SizedBox(
                                 width: _companyW,
-                                child: Text(
-                                  e.company,
-                                  style: const TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      e.company,
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    if (e.remarks.isNotEmpty)
+                                      Text(
+                                        remarksText(e.remarks, store: store),
+                                        key: Key('remarks_${e.id}'),
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w600,
+                                          fontStyle: FontStyle.italic,
+                                          color: AppColors.navy,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                             ),

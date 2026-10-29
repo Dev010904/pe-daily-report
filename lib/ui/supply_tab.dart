@@ -72,6 +72,7 @@ class SupplyTab extends StatelessWidget {
             entry: day.entries[i],
             loanFull: loanTexts(store, day.entries[i].loanFull),
             loanEmpty: loanTexts(store, day.entries[i].loanEmpty),
+            remarks: remarksText(day.entries[i].remarks, store: store),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -101,12 +102,16 @@ class EntryCard extends StatelessWidget {
   /// Loan cylinders in the entry ("ARGON 10 (ABC Plant)").
   final List<String> loanFull;
   final List<String> loanEmpty;
+
+  /// Line remarks as text ("" when none).
+  final String remarks;
   const EntryCard({
     super.key,
     required this.index,
     required this.entry,
     this.loanFull = const [],
     this.loanEmpty = const [],
+    this.remarks = '',
     required this.onTap,
     required this.onToggleBill,
   });
@@ -260,6 +265,22 @@ class EntryCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (remarks.isNotEmpty)
+              Container(
+                key: Key('remarks_${entry.id}'),
+                width: double.infinity,
+                color: const Color(0xFFF1F4F8),
+                padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                child: Text(
+                  'Remarks:  $remarks',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    fontStyle: FontStyle.italic,
+                    color: AppColors.navy,
+                  ),
+                ),
+              ),
             if (entry.cash.isNotEmpty)
               Container(
                 decoration: const BoxDecoration(

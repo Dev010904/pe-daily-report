@@ -95,6 +95,19 @@ M = month-wise (business year April - March, ← → = year), Y = year-wise,
 C = choose dates, P = PDF. Enter on a year shows its months, on a month its
 days, on a day opens that day's Filling / Plant; Backspace goes up a level.
 
+## AR SPL removed, line remarks (v2.4.1)
+AR SPL is no longer a gas (user, 2026-10-29): every old AR SPL cylinder counts
+as ARGON. Old records are merged exactly in lib/logic/argon_spl.dart (numbers
+added; hand-corrected starts of day become ARGON start + AR SPL start, so the
+ARGON stock = old ARGON + AR SPL every day); entries that held AR SPL get the
+remark "ARGON SPL" (or "ARGON SPL: 2 full" when mixed with ARGON). Screens show
+the merged data at once; the rewritten records are saved after a successful
+sync (AppStore.saveSplMerge), so nothing newer from another device is lost.
+Every entry line (ours and loan lines) has a **Remarks** box after Empty
+received (Enter: numbers -> remarks -> next gas); stored on the entry as
+`remarks` {gas code or "gas|plant": text}; shown in the Supply list, company
+page, Save box and the day / register PDFs.
+
 ## Vehicles & papers (v2.4)
 V on the PC (phone: Settings -> Vehicles & Papers, or the Dashboard list).
 Each delivery vehicle by its number; each vehicle has papers (PUC, Insurance,
