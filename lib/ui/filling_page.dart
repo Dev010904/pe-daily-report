@@ -44,9 +44,13 @@ class _Line {
   List<int> filled;
   final TextEditingController sentAdd = TextEditingController();
   final TextEditingController filledAdd = TextEditingController();
+
+  /// ARGON lines only: a note (e.g. how many were ARGON SPL).
+  final TextEditingController remark;
   final FocusNode gasNode = FocusNode(debugLabel: 'plantGas');
   final FocusNode sentNode = FocusNode(debugLabel: 'plantSent');
   final FocusNode filledNode = FocusNode(debugLabel: 'plantFilled');
+  final FocusNode remarkNode = FocusNode(debugLabel: 'plantRemark');
 
   _Line(
     this.gas,
@@ -55,10 +59,14 @@ class _Line {
     this.openFix,
     List<int>? sent,
     List<int>? filled,
+    String remark = '',
   }) : sent = sent ?? [],
-       filled = filled ?? [];
+       filled = filled ?? [],
+       remark = TextEditingController(text: remark);
 
   bool get isDa => gas == 'DA';
+  bool get hasRemark => gas == kArgon;
+  String get remarkText => hasRemark ? remark.text.trim() : '';
 
   List<int> get sentAll => StepsField.withPending(sent, sentAdd);
   List<int> get filledAll => StepsField.withPending(filled, filledAdd);
@@ -66,9 +74,11 @@ class _Line {
   void dispose() {
     sentAdd.dispose();
     filledAdd.dispose();
+    remark.dispose();
     gasNode.dispose();
     sentNode.dispose();
     filledNode.dispose();
+    remarkNode.dispose();
   }
 }
 
@@ -142,6 +152,9 @@ class _FillingPageState extends State<FillingPage> {
         ...?day.openPlant[g.code]?.keys,
         ...?sent[g.code]?.keys,
         ...?filled[g.code]?.keys,
+        // A line with only a note on it.
+        for (final k in day.fillingRemarks.keys)
+          if (k.startsWith('${g.code}|')) k.substring(g.code.length + 1),
       };
       for (final id in ids) {
         _lines.add(
@@ -152,6 +165,7 @@ class _FillingPageState extends State<FillingPage> {
             openFix: day.openPlant[g.code]?[id],
             sent: sent[g.code]?[id],
             filled: filled[g.code]?[id],
+            remark: day.fillingRemarkOf(g.code, id),
           ),
         );
       }
@@ -219,6 +233,16 @@ class _FillingPageState extends State<FillingPage> {
   int _left(_Line l) => _open(l) + _sum(l.sentAll) - _sum(l.filledAll);
 
   bool _used(_Line l) => l.sentAll.isNotEmpty || l.filledAll.isNotEmpty;
+
+  /// Enter on an empty "filled back": the ARGON note, else the next line.
+  void _afterFilled(int i) {
+    final l = _lines[i];
+    if (l.hasRemark) {
+      _focus(l.remarkNode);
+    } else {
+      _afterLine(i);
+    }
+  }
 
   /// DA is swapped at one plant a day: another line can take DA only while
   /// the DA line there is still empty (then that one is left unused).
@@ -379,7 +403,10 @@ class _FillingPageState extends State<FillingPage> {
   Future<void> _save() async {
     for (final l in _lines) {
       final used =
-          l.sentAll.isNotEmpty || l.filledAll.isNotEmpty || l.openFix != null;
+          l.sentAll.isNotEmpty ||
+          l.filledAll.isNotEmpty ||
+          l.openFix != null ||
+          l.remarkText.isNotEmpty;
       if (l.plantId == null && used) {
         toast(context, 'Choose the plant name for ${gasLabel(l.gas)}');
         return;
@@ -416,6 +443,9 @@ class _FillingPageState extends State<FillingPage> {
       }
       day.addPlantSteps(sent: true, gas: l.gas, plant: id, steps: l.sentAll);
       day.addPlantSteps(sent: false, gas: l.gas, plant: id, steps: l.filledAll);
+      if (l.remarkText.isNotEmpty) {
+        day.fillingRemarks[fillingRemarkKey(l.gas, id)] = l.remarkText;
+      }
       if (l.openFix != null && l.openFix != _autoOpen(l)) {
         (day.openPlant[l.gas] ??= {})[id] = l.openFix!;
       }
@@ -763,9 +793,36 @@ class _FillingPageState extends State<FillingPage> {
                 l.filled = s;
                 _touch();
               },
-              onNext: () => _afterLine(i),
+              onNext: () => _afterFilled(i),
             ),
           ),
+          if (l.hasRemark)
+            // Phone: the box under its label, so the note fits.
+            MediaQuery.sizeOf(context).width < 560
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Remarks  (e.g. ARGON SPL)',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.groupAr,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        _remarkBox(i, l),
+                      ],
+                    ),
+                  )
+                : _row(
+                    'Remarks',
+                    'e.g. ARGON SPL',
+                    AppColors.groupAr,
+                    _remarkBox(i, l),
+                  ),
           const SizedBox(height: 6),
           if (l.isDa)
             Container(
@@ -825,6 +882,32 @@ class _FillingPageState extends State<FillingPage> {
       ),
     );
   }
+
+  /// The ARGON line's note; Enter goes on to the next line.
+  Widget _remarkBox(int i, _Line l) => TextField(
+    key: Key('plantRemark$i'),
+    controller: l.remark,
+    focusNode: l.remarkNode,
+    maxLength: 80,
+    textCapitalization: TextCapitalization.characters,
+    textInputAction: TextInputAction.next,
+    onChanged: (_) => _touch(),
+    onSubmitted: (_) {
+      if (!onTopPage(context)) {
+        reclaimDialogFocus();
+        return;
+      }
+      _afterLine(i);
+    },
+    onEditingComplete: () {},
+    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    decoration: const InputDecoration(
+      isDense: true,
+      counterText: '',
+      hintText: 'Remarks',
+      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+    ),
+  );
 
   /// Label close to its value (not pushed to the far edge).
   Widget _row(String title, String? note, Color color, Widget value) => Padding(

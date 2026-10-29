@@ -56,7 +56,11 @@ String loanText(
 
 /// Remarks of an entry's lines as text: "ARGON: ARGON SPL,  ARGON · ABC
 /// Plant: urgent". Loan line codes are "gas|plantId".
-String remarksText(Map<String, String> remarks, {AppStore? store, String sep = ',  '}) {
+String remarksText(
+  Map<String, String> remarks, {
+  AppStore? store,
+  String sep = ',  ',
+}) {
   String name(String code) {
     if (!code.contains('|')) return gasLabel(code);
     final (gas, plant) = loanSplit(code);

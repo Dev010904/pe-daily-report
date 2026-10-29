@@ -1093,6 +1093,7 @@ class _PlantPageState extends State<PlantPage> {
                     color: AppColors.loan,
                   ),
                 ),
+              if (r.remarks.isNotEmpty) _remarks(r),
             ],
           ),
         ),
@@ -1145,8 +1146,21 @@ class _PlantPageState extends State<PlantPage> {
             const SizedBox(height: 6),
             _cardRow('Loan back', AppColors.loan, r.loanBack),
           ],
+          if (r.remarks.isNotEmpty) ...[const SizedBox(height: 6), _remarks(r)],
         ],
       ),
+    ),
+  );
+
+  /// Notes on the day's filling lines (ARGON).
+  Widget _remarks(PlantDay r) => Text(
+    'Remarks: ${r.remarks.entries.map((e) => '${gasLabel(e.key)}: ${e.value}').join(',  ')}',
+    key: Key('plantRemarks_${r.key}'),
+    style: const TextStyle(
+      fontSize: 14,
+      fontStyle: FontStyle.italic,
+      fontWeight: FontWeight.w800,
+      color: AppColors.groupAr,
     ),
   );
 

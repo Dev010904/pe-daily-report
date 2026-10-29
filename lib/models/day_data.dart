@@ -275,6 +275,15 @@ class DayData {
   PlantQty loanBackEmpty;
   PlantQty loanBackFull;
 
+  /// A note on a gas in the stock table (only ARGON has one, to keep count
+  /// of ARGON SPL). It goes on to the next days until it is changed; ""
+  /// means it was cleared on this day.
+  Map<String, String> stockRemarks;
+
+  /// A note on a filling plant line ("gas|plant"), for this day only (only
+  /// ARGON lines have one).
+  Map<String, String> fillingRemarks;
+
   /// Parts written by a newer version of the app. Kept as they are, so
   /// saving here never throws them away.
   final Map<String, dynamic> _extra;
@@ -302,6 +311,8 @@ class DayData {
     PlantQty? loanIn,
     PlantQty? loanBackEmpty,
     PlantQty? loanBackFull,
+    Map<String, String>? stockRemarks,
+    Map<String, String>? fillingRemarks,
     Map<String, dynamic>? extra,
   }) : entries = entries ?? [],
        filling = filling ?? {},
@@ -321,6 +332,8 @@ class DayData {
        loanIn = loanIn ?? {},
        loanBackEmpty = loanBackEmpty ?? {},
        loanBackFull = loanBackFull ?? {},
+       stockRemarks = stockRemarks ?? {},
+       fillingRemarks = fillingRemarks ?? {},
        _extra = extra ?? {};
 
   /// True when the day-level stock inputs (not entries) are all empty.
@@ -340,6 +353,8 @@ class DayData {
       loanIn.isEmpty &&
       loanBackEmpty.isEmpty &&
       loanBackFull.isEmpty &&
+      stockRemarks.isEmpty &&
+      fillingRemarks.isEmpty &&
       _extra.isEmpty;
 
   bool get isEmpty => entries.isEmpty && metaEmpty;
@@ -409,7 +424,12 @@ class DayData {
     daEmptyGiven = 0;
     daGivenSteps = [];
     daPlant = null;
+    fillingRemarks = {};
   }
+
+  /// The note on a filling plant line ("" when none).
+  String fillingRemarkOf(String gas, String plant) =>
+      fillingRemarks[fillingRemarkKey(gas, plant)] ?? '';
 
   /// All filled cylinders received today (with or without a plant line).
   Map<String, int> get totalFilling {
@@ -447,6 +467,8 @@ class DayData {
     'loanIn',
     'loanBackEmpty',
     'loanBackFull',
+    'stockRemarks',
+    'fillingRemarks',
   };
 
   /// Stored form of the day-level stock inputs (entries are stored apart).
@@ -479,6 +501,8 @@ class DayData {
     if (loanIn.isNotEmpty) 'loanIn': loanIn,
     if (loanBackEmpty.isNotEmpty) 'loanBackEmpty': loanBackEmpty,
     if (loanBackFull.isNotEmpty) 'loanBackFull': loanBackFull,
+    if (stockRemarks.isNotEmpty) 'stockRemarks': stockRemarks,
+    if (fillingRemarks.isNotEmpty) 'fillingRemarks': fillingRemarks,
   };
 
   static DayData fromMeta(
@@ -511,6 +535,9 @@ class DayData {
       loanIn: plantQty(j['loanIn']),
       loanBackEmpty: plantQty(j['loanBackEmpty']),
       loanBackFull: plantQty(j['loanBackFull']),
+      // A cleared stock note ("") is a real value: it stops the old one.
+      stockRemarks: textMap(j['stockRemarks'], keepEmpty: true),
+      fillingRemarks: textMap(j['fillingRemarks']),
       extra: {
         for (final e in j.entries)
           if (!_known.contains(e.key)) e.key: e.value,
@@ -520,6 +547,21 @@ class DayData {
 
   DayData copy() =>
       fromMeta(date, metaJson(), [for (final e in entries) e.copy()]);
+}
+
+/// Key of a filling plant line's note.
+String fillingRemarkKey(String gas, String plant) => '$gas|$plant';
+
+/// Reads a {key: text} map, dropping blank texts unless [keepEmpty].
+Map<String, String> textMap(Object? raw, {bool keepEmpty = false}) {
+  if (raw is! Map) return {};
+  final out = <String, String>{};
+  raw.forEach((k, v) {
+    if (v is! String) return;
+    final t = v.trim();
+    if (t.isNotEmpty || keepEmpty) out[k.toString()] = t;
+  });
+  return out;
 }
 
 /// Reads a {gas: qty} map, dropping zeros unless [keepZero].

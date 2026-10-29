@@ -32,6 +32,7 @@ Future<List<int>> buildDayPdf(AppStore store, List<String> dates) async {
         build: (ctx) => [
           section('DAILY STOCK'),
           _stockTable(store, stock),
+          ?_argonRemark(store, stock),
           if (stock.hasDamaged) _damaged(stock),
           _stockNote(stock),
           if (stock.hasLoans) ...[
@@ -109,6 +110,10 @@ pw.Widget _stockTable(AppStore store, StockDay stock) {
       ),
     );
     for (final l in r.plantLines) {
+      // The note on the day's ARGON filling line at this plant.
+      final note = r.gas.code == kArgon
+          ? store.day(stock.date).fillingRemarkOf(kArgon, l.plantId)
+          : '';
       rows.add(
         pw.TableRow(
           decoration: pw.BoxDecoration(color: PdfC.amberBg),
@@ -119,12 +124,32 @@ pw.Widget _stockTable(AppStore store, StockDay stock) {
               color: PdfC.amber,
               align: pw.TextAlign.left,
             ),
-            cell(
-              store.plantName(l.plantId),
-              bold: true,
-              color: PdfC.amber,
-              align: pw.TextAlign.left,
-            ),
+            note.isEmpty
+                ? cell(
+                    store.plantName(l.plantId),
+                    bold: true,
+                    color: PdfC.amber,
+                    align: pw.TextAlign.left,
+                  )
+                : pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      cell(
+                        store.plantName(l.plantId),
+                        bold: true,
+                        color: PdfC.amber,
+                        align: pw.TextAlign.left,
+                      ),
+                      cell(
+                        note,
+                        italic: true,
+                        bold: true,
+                        color: PdfC.teal,
+                        size: 7,
+                        align: pw.TextAlign.left,
+                      ),
+                    ],
+                  ),
             cell(''),
             cell(''),
             cell(''),
@@ -183,6 +208,46 @@ pw.Widget _stockTable(AppStore store, StockDay stock) {
     },
     defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
     children: rows,
+  );
+}
+
+/// The ARGON note (e.g. the ARGON SPL count), with the day it was written
+/// when it came on from an earlier day. Null = none.
+pw.Widget? _argonRemark(AppStore store, StockDay stock) {
+  final rem = store.stockRemarkOn(stock.date, kArgon);
+  if (rem == null) return null;
+  final from = rem.from == stock.date
+      ? ''
+      : '   (written ${fmtDmy(parseDayKey(rem.from))})';
+  return pw.Container(
+    margin: const pw.EdgeInsets.only(top: 4),
+    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+    decoration: pw.BoxDecoration(
+      color: PdfC.tealBg,
+      border: pw.Border.all(color: PdfC.teal, width: 0.6),
+    ),
+    child: pw.RichText(
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(
+            text: 'ARGON REMARK:  ',
+            style: pw.TextStyle(
+              fontSize: 8,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfC.teal,
+            ),
+          ),
+          pw.TextSpan(
+            text: rem.text,
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.TextSpan(
+            text: from,
+            style: pw.TextStyle(fontSize: 7.5, color: PdfC.muted),
+          ),
+        ],
+      ),
+    ),
   );
 }
 

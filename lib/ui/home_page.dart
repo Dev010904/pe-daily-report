@@ -6,6 +6,7 @@ import '../data/store.dart';
 import '../models/day_data.dart';
 import '../util/dates.dart';
 import 'account_page.dart';
+import 'argon_remark.dart';
 import 'companies_tab.dart';
 import 'companies_table.dart';
 import 'company_page.dart';
@@ -221,6 +222,7 @@ class _HomePageState extends State<HomePage>
   void _opening() => _push(OpeningPage(store: store, date: _key));
   void _damaged() => _push(DamagedPage(store: store, date: _key));
   void _loan() => _push(LoanPage(store: store, date: _key));
+  void _argonRemark() => editArgonStockRemark(context, store, _key);
   void _reports() => _push(ExportPage(store: store));
   void _settings() => _push(SettingsPage(session: widget.session));
   void _install() => _push(InstallPage(session: widget.session));
@@ -256,6 +258,7 @@ class _HomePageState extends State<HomePage>
     'o': _opening,
     'x': _damaged,
     'b': _loan,
+    'm': _argonRemark,
     'p': _dayPdf,
     'r': _reports,
     't': _goToday,
@@ -385,6 +388,12 @@ class _HomePageState extends State<HomePage>
       'Loan Cylinders (from plant)',
       icon: Icons.swap_horiz,
       action: _loan,
+    ),
+    _MenuItem(
+      'M',
+      'ARGON Remark (stock)',
+      icon: Icons.sticky_note_2_outlined,
+      action: _argonRemark,
     ),
     _MenuItem('O', 'Opening Stock', icon: Icons.edit_note, action: _opening),
     const _MenuItem.head('DATE'),
@@ -771,6 +780,7 @@ class _HomePageState extends State<HomePage>
       ('F', 'Filling / Plant'),
       ('X', 'Damaged'),
       ('B', 'Loan'),
+      ('M', 'ARGON remark'),
       ('O', 'Opening stock'),
       ('← →', 'Day'),
       ('Esc', 'Menu'),
@@ -879,7 +889,9 @@ class _HomePageState extends State<HomePage>
                   fontWeight: FontWeight.w800,
                 ),
                 tabs: [
-                  _tab(store.paperAlerts().isEmpty ? 'Dashboard' : '⚠ Dashboard'),
+                  _tab(
+                    store.paperAlerts().isEmpty ? 'Dashboard' : '⚠ Dashboard',
+                  ),
                   _tab(
                     entries.isEmpty ? 'Supply' : 'Supply (${entries.length})',
                   ),

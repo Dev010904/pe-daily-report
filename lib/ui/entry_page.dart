@@ -1368,7 +1368,8 @@ class _Summary extends StatelessWidget {
             line('LOAN full supplied', loanFull, color: AppColors.loan),
           if (loanEmpty != '-')
             line('LOAN empty back', loanEmpty, color: AppColors.loan),
-          if (remarks.isNotEmpty) line('Remarks', remarks, color: AppColors.navy),
+          if (remarks.isNotEmpty)
+            line('Remarks', remarks, color: AppColors.navy),
           if (cash.isNotEmpty)
             line(
               'Cash',

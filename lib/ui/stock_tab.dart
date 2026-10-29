@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../data/store.dart';
 import '../logic/stock.dart';
 import '../models/gas.dart';
+import '../util/dates.dart';
+import 'argon_remark.dart';
 import 'damaged_page.dart';
 import 'filling_page.dart';
 import 'loan_page.dart';
@@ -113,10 +115,12 @@ class StockTab extends StatelessWidget {
             _StockTable(
               store: store,
               stock: stock,
+              date: date,
               onFill: () => _openFilling(context),
               onOpening: () => _openOpening(context),
               onDamaged: () => _openDamaged(context),
               onLoan: () => _openLoan(context),
+              onRemark: () => editArgonStockRemark(context, store, date),
             ),
             const SizedBox(height: 8),
             _Legend(showPlant: anyPlant, showLoan: stock.hasLoans),
@@ -251,24 +255,29 @@ const double _headH = 50;
 const double _rowH = 56;
 const double _plantH = 42;
 const double _loanH = 46;
+const double _remarkH = 46;
 // Base widths; the whole table is scaled to fit the screen exactly.
 const List<double> _minW = [52, 50, 46, 54, 100];
 
 class _StockTable extends StatelessWidget {
   final AppStore store;
   final StockDay stock;
+  final String date;
   final VoidCallback onFill;
   final VoidCallback onOpening;
   final VoidCallback onDamaged;
   final VoidCallback onLoan;
+  final VoidCallback onRemark;
 
   const _StockTable({
     required this.store,
     required this.stock,
+    required this.date,
     required this.onFill,
     required this.onOpening,
     required this.onDamaged,
     required this.onLoan,
+    required this.onRemark,
   });
 
   @override
@@ -299,6 +308,11 @@ class _StockTable extends StatelessWidget {
             for (final l in r.loanLines) {
               fixed.add(_loanGasCell());
               moving.add(InkWell(onTap: onLoan, child: _loanRow(l, w)));
+            }
+            // ARGON only: a note, e.g. how many of them are ARGON SPL.
+            if (r.gas.code == kArgon) {
+              fixed.add(_remarkGasCell());
+              moving.add(InkWell(onTap: onRemark, child: _remarkRow()));
             }
           }
           // Damaged cylinders (all gases) always last, so the total and
@@ -882,8 +896,93 @@ class _StockTable extends StatelessWidget {
     );
   }
 
+  Widget _remarkGasCell() => Container(
+    height: _remarkH,
+    decoration: BoxDecoration(
+      color: AppColors.groupAr.withValues(alpha: 0.06),
+      border: Border(
+        top: BorderSide(color: AppColors.groupAr.withValues(alpha: 0.3)),
+      ),
+    ),
+    alignment: Alignment.centerRight,
+    padding: const EdgeInsets.only(right: 6),
+    child: const FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        '↳ remark',
+        style: TextStyle(
+          fontSize: 12.5,
+          fontStyle: FontStyle.italic,
+          fontWeight: FontWeight.w800,
+          color: AppColors.groupAr,
+        ),
+      ),
+    ),
+  );
+
+  /// The ARGON note: written today, or carried on from an earlier day
+  /// (then that day is shown).
+  Widget _remarkRow() {
+    final rem = store.stockRemarkOn(date, kArgon);
+    return Container(
+      key: const Key('argonRemarkRow'),
+      height: _remarkH,
+      decoration: BoxDecoration(
+        color: AppColors.groupAr.withValues(alpha: 0.06),
+        border: Border(
+          top: BorderSide(color: AppColors.groupAr.withValues(alpha: 0.3)),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.edit_note, size: 20, color: AppColors.groupAr),
+          const SizedBox(width: 6),
+          Expanded(
+            child: rem == null
+                ? const Text(
+                    'Tap to write a remark (e.g. ARGON SPL count)',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13.5, color: AppColors.muted),
+                  )
+                : Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: rem.text),
+                        if (rem.from != date)
+                          TextSpan(
+                            text:
+                                '   (from ${fmtShort(parseDayKey(rem.from))})',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                      ],
+                    ),
+                    key: const Key('argonRemarkText'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0B5E60),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _plantRow(StockRow r, PlantLine l, List<double> w) {
     final nameW = w[0] + w[1] + w[2] + w[3];
+    final note = r.gas.code == kArgon
+        ? store.day(date).fillingRemarkOf(kArgon, l.plantId)
+        : '';
     return Container(
       height: _plantH,
       decoration: const BoxDecoration(
@@ -905,11 +1004,28 @@ class _StockTable extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(
-                      store.plantName(l.plantId),
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: store.plantName(l.plantId)),
+                          // The note on today's ARGON filling line.
+                          if (note.isNotEmpty)
+                            TextSpan(
+                              text: '  · $note',
+                              style: const TextStyle(
+                                fontStyle: FontStyle.italic,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0B5E60),
+                              ),
+                            ),
+                        ],
+                      ),
+                      key: Key('plantRowName_${r.gas.code}_${l.plantId}'),
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 14,
+                        height: 1.1,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF6B4A00),
                       ),

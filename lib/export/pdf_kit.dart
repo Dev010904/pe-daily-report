@@ -42,6 +42,8 @@ abstract final class PdfC {
   static final balBg = PdfColor.fromHex('#E5EEFA');
   static final loan = PdfColor.fromHex('#8E24AA');
   static final loanBg = PdfColor.fromHex('#F7EAFB');
+  static final teal = PdfColor.fromHex('#0B5E60');
+  static final tealBg = PdfColor.fromHex('#E4F3F3');
 }
 
 /// The PE mark: a gas cylinder with a slanted "PE" on its body.

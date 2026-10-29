@@ -724,7 +724,11 @@ class OldDateBanner extends StatelessWidget {
 
 /// Reads a typed date: "12", "12-10", "12-10-2026", "12/10/26".
 /// Returns null when it is not a real date or is after today.
-DateTime? parseTypedDate(String text, {DateTime? now, bool allowFuture = false}) {
+DateTime? parseTypedDate(
+  String text, {
+  DateTime? now,
+  bool allowFuture = false,
+}) {
   final base = now ?? today();
   final parts = text
       .trim()

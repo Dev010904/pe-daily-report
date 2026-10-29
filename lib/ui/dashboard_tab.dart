@@ -174,10 +174,14 @@ class DashboardTab extends StatelessWidget {
                     value: '${papers.length}',
                     sub: urgent > 0
                         ? '$urgent URGENT (expired)'
-                        : (papers.isEmpty ? 'All papers valid' : 'Within $kPaperAlertDays days'),
+                        : (papers.isEmpty
+                              ? 'All papers valid'
+                              : 'Within $kPaperAlertDays days'),
                     color: urgent > 0
                         ? AppColors.danger
-                        : (papers.isEmpty ? AppColors.full : const Color(0xFFE65100)),
+                        : (papers.isEmpty
+                              ? AppColors.full
+                              : const Color(0xFFE65100)),
                     icon: Icons.local_shipping,
                     wide: wide,
                   ),
@@ -202,7 +206,8 @@ class DashboardTab extends StatelessWidget {
                     : 'VEHICLE PAPERS TO RENEW',
                 count: papers.length,
                 color: urgent > 0 ? AppColors.danger : const Color(0xFFE65100),
-                help: 'Shown every day from $kPaperAlertDays days before the last day. '
+                help:
+                    'Shown every day from $kPaperAlertDays days before the last day. '
                     'Enter = open the vehicle and write the new dates (Renewed).',
                 empty: '',
                 child: Align(
@@ -223,8 +228,11 @@ class DashboardTab extends StatelessWidget {
                             ),
                           ),
                         ),
-                        itemBuilder: (context, i, selected) =>
-                            PaperAlertRow(papers[i], selected: selected, index: i),
+                        itemBuilder: (context, i, selected) => PaperAlertRow(
+                          papers[i],
+                          selected: selected,
+                          index: i,
+                        ),
                       ),
                     ),
                   ),

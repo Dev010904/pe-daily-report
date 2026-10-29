@@ -309,8 +309,9 @@ class AppStore extends ChangeNotifier {
   Future<void> saveVehicle(Vehicle v) =>
       repo.put([Rec(Kind.setting, 'vehicle_${v.id}', v.toJson())]);
 
-  Future<void> removeVehicle(Vehicle v) =>
-      repo.put([Rec(Kind.setting, 'vehicle_${v.id}', v.toJson(), deleted: true)]);
+  Future<void> removeVehicle(Vehicle v) => repo.put([
+    Rec(Kind.setting, 'vehicle_${v.id}', v.toJson(), deleted: true),
+  ]);
 
   /// Papers to renew: expiring within kPaperAlertDays days, or expired
   /// (most urgent first).
@@ -329,7 +330,9 @@ class AppStore extends ChangeNotifier {
     final out = <String>[...kPaperTypes];
     for (final v in _vehicles.values) {
       for (final p in v.papers) {
-        if (!out.any((t) => t.toLowerCase() == p.type.toLowerCase())) out.add(p.type);
+        if (!out.any((t) => t.toLowerCase() == p.type.toLowerCase())) {
+          out.add(p.type);
+        }
       }
     }
     return out;
@@ -403,6 +406,44 @@ class AppStore extends ChangeNotifier {
     ]);
   }
 
+  // ------------------------------------------------------ stock remark
+
+  /// The stock note on [gas] for [date]: written that day, or carried on
+  /// from the last day it was written ([from] = that day). Null = none.
+  ({String text, String from})? stockRemarkOn(String date, String gas) =>
+      _stockRemark(date, gas, sameDay: true);
+
+  ({String text, String from})? _stockRemark(
+    String date,
+    String gas, {
+    required bool sameDay,
+  }) {
+    final dates = savedDates;
+    for (var i = dates.length - 1; i >= 0; i--) {
+      final d = dates[i], c = d.compareTo(date);
+      if (c > 0 || (c == 0 && !sameDay)) continue;
+      final t = _days[d]!.stockRemarks[gas];
+      if (t == null) continue;
+      return t.isEmpty ? null : (text: t, from: d);
+    }
+    return null;
+  }
+
+  /// Writes the stock note on [gas] for [date] (it goes on to the next
+  /// days). An empty [text] clears it from this day on.
+  Future<void> setStockRemark(String date, String gas, String text) async {
+    final t = text.trim();
+    final day = this.day(date);
+    if (t.isNotEmpty) {
+      day.stockRemarks[gas] = t;
+    } else if (_stockRemark(date, gas, sameDay: false) != null) {
+      day.stockRemarks[gas] = ''; // stops the one from an earlier day
+    } else {
+      day.stockRemarks.remove(gas);
+    }
+    await saveDay(day);
+  }
+
   // ------------------------------------------------------ plant report
 
   /// Every day something went to or came from [plantId] (oldest first):
@@ -453,12 +494,28 @@ class AppStore extends ChangeNotifier {
           if (v != 0) loanBack[gas] = (loanBack[gas] ?? 0) + v;
         });
       }
+      // Notes written on this plant's filling lines (ARGON).
+      final remarks = <String, String>{};
+      d.fillingRemarks.forEach((k, v) {
+        final at = k.indexOf('|');
+        if (at > 0 && k.substring(at + 1) == plantId) {
+          remarks[k.substring(0, at)] = v;
+        }
+      });
       if (sent.isNotEmpty ||
           filled.isNotEmpty ||
           loanIn.isNotEmpty ||
-          loanBack.isNotEmpty) {
+          loanBack.isNotEmpty ||
+          remarks.isNotEmpty) {
         out.add(
-          PlantDay(date, sent, filled, loanIn: loanIn, loanBack: loanBack),
+          PlantDay(
+            date,
+            sent,
+            filled,
+            loanIn: loanIn,
+            loanBack: loanBack,
+            remarks: remarks,
+          ),
         );
       }
     }

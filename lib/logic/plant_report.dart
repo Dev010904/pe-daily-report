@@ -12,14 +12,19 @@ class PlantDay {
   final Map<String, int> loanIn;
   final Map<String, int> loanBack;
 
+  /// Notes on the day's filling lines, by gas (days only, not added up).
+  final Map<String, String> remarks;
+
   PlantDay(
     this.key,
     this.sent,
     this.filled, {
     Map<String, int>? loanIn,
     Map<String, int>? loanBack,
+    Map<String, String>? remarks,
   }) : loanIn = loanIn ?? {},
-       loanBack = loanBack ?? {};
+       loanBack = loanBack ?? {},
+       remarks = remarks ?? {};
 
   int get totalSent => sent.values.fold(0, (a, b) => a + b);
   int get totalFilled => filled.values.fold(0, (a, b) => a + b);

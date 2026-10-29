@@ -30,6 +30,10 @@ const List<Gas> kGases = [
   Gas('LC', 'LC'),
 ];
 
+/// ARGON: the only gas with a note in the stock and filling (to keep count
+/// of ARGON SPL, which is counted in ARGON).
+const String kArgon = 'AR_COMM';
+
 /// AR SPL is no longer a gas (counted as ARGON since 2026-10-29); kept only
 /// to read old records (see logic/argon_spl.dart).
 const Gas kRetiredArgonSpl = Gas('AR_SPL', 'AR SPL', group: 'AR');

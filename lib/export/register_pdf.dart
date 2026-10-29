@@ -429,12 +429,12 @@ pw.Widget _register(AppStore store, List<String> dates) {
             cell(fmtDmy(parseDayKey(d))),
             billCell(e, size: 9),
             cell(
-            e.remarks.isEmpty
-                ? e.company
-                : '${e.company}\nRemarks: ${remarksText(e.remarks, store: store)}',
-            bold: true,
-            align: pw.TextAlign.left,
-          ),
+              e.remarks.isEmpty
+                  ? e.company
+                  : '${e.company}\nRemarks: ${remarksText(e.remarks, store: store)}',
+              bold: true,
+              align: pw.TextAlign.left,
+            ),
             cell(e.challan.isEmpty ? '-' : e.challan),
             cell(
               qtyAndLoan(store, e.full, e.loanFull, sep: ',  '),

@@ -52,6 +52,24 @@ Future<List<int>> buildPlantReportPdf(
     ),
     PlantGroup.year => 'Apr ${r.key} - Mar ${int.parse(r.key) + 1}',
   };
+  // A day with notes on its filling lines (ARGON): shown under the date.
+  pw.Widget dateCell(PlantDay r) => r.remarks.isEmpty
+      ? cell(label(r))
+      : pw.Column(
+          children: [
+            cell(label(r)),
+            cell(
+              [
+                for (final e in r.remarks.entries)
+                  '${gasLabel(e.key)}: ${e.value}',
+              ].join('\n'),
+              italic: true,
+              bold: true,
+              color: PdfC.teal,
+              size: 6.5,
+            ),
+          ],
+        );
   String n(int? v) => (v ?? 0) == 0 ? '' : '$v';
   String text(Map<String, int> m) =>
       orderedQty(m).isEmpty ? '-' : qtyLines(m, sep: ',  ');
@@ -89,7 +107,7 @@ Future<List<int>> buildPlantReportPdf(
         pw.TableRow(
           decoration: stripe(table.length),
           children: [
-            cell(label(r)),
+            dateCell(r),
             for (final g in gases) ...[
               cell(n(r.sent[g.code])),
               cell(n(r.filled[g.code]), bold: true, color: PdfC.green),
@@ -144,7 +162,7 @@ Future<List<int>> buildPlantReportPdf(
         pw.TableRow(
           decoration: stripe(table.length),
           children: [
-            cell(label(r)),
+            dateCell(r),
             cell(text(r.sent), align: pw.TextAlign.left),
             cell(text(r.filled), align: pw.TextAlign.left, color: PdfC.green),
             cell('${r.totalSent}', bold: true),
@@ -265,7 +283,7 @@ Future<List<int>> buildPlantReportPdf(
                 for (final r in loanRows)
                   pw.TableRow(
                     children: [
-                      cell(label(r)),
+                      dateCell(r),
                       cell(
                         text(r.loanIn),
                         align: pw.TextAlign.left,

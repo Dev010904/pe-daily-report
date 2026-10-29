@@ -11,7 +11,7 @@ import 'stock.dart';
 /// becomes the sum of what each of the two gases really started with, so
 /// the ARGON stock is AR SPL + ARGON on every day.
 const String kSpl = 'AR_SPL';
-const String kComm = 'AR_COMM';
+const String kComm = kArgon;
 
 /// The remark written on lines that held AR SPL.
 const String kSplRemark = 'ARGON SPL';
