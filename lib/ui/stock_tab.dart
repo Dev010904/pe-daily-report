@@ -6,6 +6,7 @@ import '../models/gas.dart';
 import '../util/dates.dart';
 import 'argon_remark.dart';
 import 'damaged_page.dart';
+import 'extra_full_page.dart';
 import 'filling_page.dart';
 import 'loan_page.dart';
 import 'opening_page.dart';
@@ -44,6 +45,13 @@ class StockTab extends StatelessWidget {
     context,
     MaterialPageRoute(
       builder: (_) => LoanPage(store: store, date: date),
+    ),
+  );
+
+  void _openExtraFull(BuildContext context) => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ExtraFullPage(store: store, date: date),
     ),
   );
 
@@ -123,7 +131,11 @@ class StockTab extends StatelessWidget {
               onRemark: () => editArgonStockRemark(context, store, date),
             ),
             const SizedBox(height: 8),
-            _Legend(showPlant: anyPlant, showLoan: stock.hasLoans),
+            _Legend(
+              showPlant: anyPlant,
+              showLoan: stock.hasLoans,
+              showExtra: stock.extraFullToday.isNotEmpty,
+            ),
             const SizedBox(height: 14),
             FilledButton.icon(
               key: const Key('editFilling'),
@@ -140,6 +152,14 @@ class StockTab extends StatelessWidget {
               ),
               icon: const Icon(Icons.broken_image_outlined),
               label: const Text('Damaged Cylinders'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const Key('editExtraFull'),
+              onPressed: () => _openExtraFull(context),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.full),
+              icon: const Icon(Icons.published_with_changes),
+              label: const Text('Extra Full Cylinders (empty found full)'),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
@@ -166,7 +186,12 @@ class StockTab extends StatelessWidget {
 class _Legend extends StatelessWidget {
   final bool showPlant;
   final bool showLoan;
-  const _Legend({required this.showPlant, this.showLoan = false});
+  final bool showExtra;
+  const _Legend({
+    required this.showPlant,
+    this.showLoan = false,
+    this.showExtra = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -220,6 +245,27 @@ class _Legend extends StatelessWidget {
               ],
             ),
           ),
+          if (showExtra)
+            const Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Green "extra"',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.full,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  TextSpan(
+                    text:
+                        ' = empty cylinders received that were found full: '
+                        'off the empties, on to full stock',
+                    style: style,
+                  ),
+                ],
+              ),
+            ),
           if (showLoan)
             const Text.rich(
               TextSpan(
@@ -819,7 +865,8 @@ class _StockTable extends StatelessWidget {
     );
   }
 
-  /// Closing full, with "−2 damaged" under it when full ones were damaged.
+  /// Closing full, with "−2 damaged" under it when full ones were damaged
+  /// and "+3 extra" when empties were found full.
   Widget _fullCell(StockRow r) {
     final n = Text(
       '${r.closeFull}',
@@ -829,21 +876,34 @@ class _StockTable extends StatelessWidget {
         color: r.closeFull < 0 ? AppColors.danger : AppColors.full,
       ),
     );
-    if (r.damagedFull == 0) return _fit(n);
+    if (r.damagedFull == 0 && r.extraFull == 0) return _fit(n);
+    Widget note(String text, Color color, Key key) => _fit(
+      Text(
+        text,
+        key: key,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _fit(n),
-        _fit(
-          Text(
-            '−${r.damagedFull} damaged',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AppColors.danger,
-            ),
+        if (r.extraFull != 0)
+          note(
+            '+${r.extraFull} extra',
+            AppColors.full,
+            Key('extraFull_${r.gas.code}'),
           ),
-        ),
+        if (r.damagedFull != 0)
+          note(
+            '−${r.damagedFull} damaged',
+            AppColors.danger,
+            Key('damagedFull_${r.gas.code}'),
+          ),
       ],
     );
   }
@@ -879,11 +939,15 @@ class _StockTable extends StatelessWidget {
                           ? AppColors.amber
                           : parts[i].damaged
                           ? AppColors.danger
+                          : parts[i].extra
+                          ? AppColors.full
                           : const Color(0xFF4A5363),
                       backgroundColor: parts[i].plant
                           ? AppColors.amberBg
                           : parts[i].damaged
                           ? const Color(0xFFFDECEC)
+                          : parts[i].extra
+                          ? AppColors.fullBg
                           : null,
                     ),
                   ),

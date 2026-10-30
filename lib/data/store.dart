@@ -11,6 +11,7 @@ import '../logic/plant_report.dart';
 import '../logic/stock.dart';
 import '../models/day_data.dart';
 import '../models/gas.dart';
+import '../models/purchase_order.dart';
 import '../models/vehicle.dart';
 import 'records.dart';
 import 'repo.dart';
@@ -43,6 +44,14 @@ class AppStore extends ChangeNotifier {
   /// Delivery vehicles and their papers (stored as settings records named
   /// "vehicle_" + id, so the cloud needs no change).
   final Map<String, Vehicle> _vehicles = {};
+
+  /// Companies' purchase orders (settings records "po_" + id).
+  final Map<String, PurchaseOrder> _pos = {};
+
+  /// PO id -> gas -> full cylinders supplied against it, and what each
+  /// entry added (to leave one entry out while it is being changed).
+  final Map<String, Map<String, int>> _poSupplied = {};
+  final Map<String, Map<String, Map<String, int>>> _poByEntry = {};
   String? _daPlantSetting;
   String? _daPlantOldSetting;
   StockBook? _book;
@@ -90,6 +99,7 @@ class AppStore extends ChangeNotifier {
     _days.clear();
     cashTypes = List.of(kDefaultCashTypes);
     _vehicles.clear();
+    _pos.clear();
     _daPlantSetting = null;
     _daPlantOldSetting = null;
     final metas = <String, Map<String, dynamic>>{};
@@ -112,6 +122,10 @@ class AppStore extends ChangeNotifier {
           if (r.id.startsWith('vehicle_')) {
             final id = r.id.substring('vehicle_'.length);
             _vehicles[id] = Vehicle.fromJson(id, r.data);
+          }
+          if (r.id.startsWith('po_')) {
+            final id = r.id.substring('po_'.length);
+            _pos[id] = PurchaseOrder.fromJson(id, r.data);
           }
           if (r.id == 'cashTypes' && r.data['values'] is List) {
             cashTypes = List<String>.from(r.data['values'] as List);
@@ -141,6 +155,7 @@ class AppStore extends ChangeNotifier {
       if (!day.isEmpty) _days[date] = day;
     }
     _mergeSpl(metas);
+    _countPoSupplied();
     _book = null;
   }
 
@@ -405,6 +420,148 @@ class AppStore extends ChangeNotifier {
       Rec(Kind.setting, 'daPlant', {'id': id, 'old': old}),
     ]);
   }
+
+  // ------------------------------------------------------ purchase orders
+
+  void _countPoSupplied() {
+    _poSupplied.clear();
+    _poByEntry.clear();
+    for (final d in _days.values) {
+      for (final e in d.entries) {
+        e.po.forEach((gas, id) {
+          final q = e.fullOf(gas);
+          if (q == 0) return;
+          final m = _poSupplied[id] ??= {};
+          m[gas] = (m[gas] ?? 0) + q;
+          ((_poByEntry[e.id] ??= {})[id] ??= {})[gas] = q;
+        });
+      }
+    }
+  }
+
+  /// A company's POs, oldest first (none for most companies).
+  List<PurchaseOrder> posOf(String? companyId) =>
+      [
+        for (final p in _pos.values)
+          if (p.companyId == companyId) p,
+      ]..sort((a, b) {
+        final m = a.made.compareTo(b.made);
+        return m != 0 ? m : a.id.compareTo(b.id);
+      });
+
+  bool hasPos(String? companyId) =>
+      _pos.values.any((p) => p.companyId == companyId);
+
+  PurchaseOrder? po(String id) => _pos[id];
+
+  /// Full cylinders of [gas] supplied against [poId] (own + loan), leaving
+  /// out the saved entry [exceptEntry] (the one being changed).
+  int poSupplied(String poId, String gas, {String? exceptEntry}) {
+    final all = _poSupplied[poId]?[gas] ?? 0;
+    final own = exceptEntry == null
+        ? 0
+        : (_poByEntry[exceptEntry]?[poId]?[gas] ?? 0);
+    return all - own;
+  }
+
+  PoLine poLine(PurchaseOrder p, String gas, {String? exceptEntry}) =>
+      PoLine(p, gas, poSupplied(p.id, gas, exceptEntry: exceptEntry));
+
+  /// Every gas of every PO of [companyId] (all companies when null).
+  List<PoLine> poLines({String? companyId}) => [
+    for (final p in companyId == null ? _allPos : posOf(companyId))
+      for (final g in kGases)
+        if (p.hasGas(g.code)) poLine(p, g.code),
+  ];
+
+  List<PurchaseOrder> get _allPos => [
+    for (final c in activeCompanies) ...posOf(c.id),
+  ];
+
+  /// POs supplied in full (or more), then the ones almost finished: for
+  /// the dashboard, so a new PO is asked for in time.
+  List<PoLine> poAlerts() {
+    final lines = poLines().where((l) => l.done || l.nearlyDone).toList();
+    lines.sort((a, b) {
+      if (a.done != b.done) return a.done ? -1 : 1;
+      return a.left.compareTo(b.left);
+    });
+    return lines;
+  }
+
+  /// Which PO each gas in [gases] counts against for [companyId]:
+  /// [chosen] when it has that gas, else the oldest PO with some of that
+  /// gas still to supply, else the newest PO that has the gas (so supplying
+  /// more than ordered shows up). [kNoPo] = none at all.
+  Map<String, String> poLinksFor(
+    String? companyId,
+    Iterable<String> gases, {
+    String? chosen,
+    String? exceptEntry,
+  }) {
+    if (chosen == kNoPo) return {};
+    final pos = posOf(companyId);
+    final pick = chosen == null ? null : _pos[chosen];
+    final out = <String, String>{};
+    for (final gas in gases) {
+      if (pick != null && pick.companyId == companyId && pick.hasGas(gas)) {
+        out[gas] = pick.id;
+        continue;
+      }
+      final withGas = pos.where((p) => p.hasGas(gas)).toList();
+      if (withGas.isEmpty) continue;
+      final open = withGas.where(
+        (p) => !poLine(p, gas, exceptEntry: exceptEntry).done,
+      );
+      out[gas] = (open.isNotEmpty ? open.first : withGas.last).id;
+    }
+    return out;
+  }
+
+  /// The PO a new entry for [companyId] starts with: the oldest one with
+  /// something still to supply, else the newest. Null when it has none.
+  String? defaultPo(String? companyId) {
+    final pos = posOf(companyId);
+    if (pos.isEmpty) return null;
+    for (final p in pos) {
+      if (p.items.keys.any((g) => !poLine(p, g).done)) return p.id;
+    }
+    return pos.last.id;
+  }
+
+  /// The PO number shown for [gas] of an entry ("" when none).
+  String poNumberOf(Entry e, String gas) {
+    final id = e.po[gas];
+    if (id == null) return '';
+    return _pos[id]?.number ?? e.poNo[gas] ?? '';
+  }
+
+  Future<PurchaseOrder> addPo(
+    String companyId,
+    String number,
+    Map<String, int> items,
+  ) async {
+    final p = PurchaseOrder(
+      id: newId(),
+      companyId: companyId,
+      number: number.trim(),
+      items: items,
+      // Always after the company's last PO, even when added in a hurry.
+      made: max(
+        DateTime.now().microsecondsSinceEpoch,
+        posOf(companyId).fold(0, (m, p) => max(m, p.made)) + 1,
+      ),
+    );
+    await savePo(p);
+    return p;
+  }
+
+  Future<void> savePo(PurchaseOrder p) =>
+      repo.put([Rec(Kind.setting, 'po_${p.id}', p.toJson())]);
+
+  /// Removes a PO. Entries that were supplied against it keep its number.
+  Future<void> removePo(PurchaseOrder p) =>
+      repo.put([Rec(Kind.setting, 'po_${p.id}', p.toJson(), deleted: true)]);
 
   // ------------------------------------------------------ stock remark
 

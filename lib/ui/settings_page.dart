@@ -9,6 +9,7 @@ import 'account_page.dart';
 import 'export_page.dart';
 import 'keys.dart';
 import 'install_page.dart';
+import 'purchase_orders_page.dart';
 import '../util/dates.dart';
 import 'theme.dart';
 import 'vehicles_page.dart';
@@ -82,7 +83,7 @@ class SettingsPage extends StatelessWidget {
       color: AppColors.navy,
       title: 'Companies',
       subtitle:
-          '${plural(store.activeCompanies.length, 'company', 'companies')} - add or remove',
+          '${plural(store.activeCompanies.length, 'company', 'companies')} - add or remove, purchase orders (PO)',
       open: () =>
           _push(context, NamesPage(store: store, kind: NamesKind.company)),
     ),
@@ -238,13 +239,35 @@ class SettingsPage extends StatelessWidget {
 enum NamesKind { company, plant }
 
 /// The list of companies or filling plants: Up / Down to move, Enter to
-/// change the name, Delete to remove, N to add a new one.
-class NamesPage extends StatelessWidget {
+/// change the name, Delete to remove, N to add a new one. Companies: O =
+/// the company's purchase orders.
+class NamesPage extends StatefulWidget {
   final AppStore store;
   final NamesKind kind;
   const NamesPage({super.key, required this.store, required this.kind});
 
-  bool get _isCompany => kind == NamesKind.company;
+  @override
+  State<NamesPage> createState() => _NamesPageState();
+}
+
+class _NamesPageState extends State<NamesPage> {
+  final _list = GlobalKey<KeyListState>();
+  AppStore get store => widget.store;
+  bool get _isCompany => widget.kind == NamesKind.company;
+
+  void _openPos(BuildContext context, NamedItem it) => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => PurchaseOrdersPage(store: store, companyId: it.id),
+    ),
+  );
+
+  /// O: the purchase orders of the selected company.
+  void _posOfSelected(BuildContext context) {
+    final items = store.activeCompanies;
+    final i = _list.currentState?.selected ?? 0;
+    if (i < items.length) _openPos(context, items[i]);
+  }
 
   Future<void> _add(BuildContext context) async {
     final name = await askText(
@@ -301,15 +324,20 @@ class NamesPage extends StatelessWidget {
       builder: (context, _) {
         final items = _isCompany ? store.activeCompanies : store.activePlants;
         return KeyPage(
-          letters: {'n': () => _add(context)},
+          letters: {
+            'n': () => _add(context),
+            if (_isCompany && items.isNotEmpty)
+              'o': () => _posOfSelected(context),
+          },
           child: Scaffold(
             appBar: AppBar(
               title: Text(_isCompany ? 'Companies' : 'Filling Plants'),
             ),
             bottomNavigationBar: isWide(context)
-                ? const KeyHints([
+                ? KeyHints([
                     ('↑ ↓', 'Move'),
                     ('Enter', 'Change name'),
+                    if (_isCompany) ('O', 'Purchase orders (PO)'),
                     ('Del', 'Remove'),
                     ('N', 'Add new'),
                     ('Esc', 'Back'),
@@ -351,14 +379,46 @@ class NamesPage extends StatelessWidget {
                       ),
                     ),
                   KeyList(
+                    key: _list,
                     autofocus: true,
                     itemCount: items.length,
                     onOpen: (i) => _edit(context, items[i]),
                     onDelete: (i) => _remove(context, items[i]),
                     itemBuilder: (context, i, selected) {
                       final it = items[i];
+                      final pos = _isCompany ? store.posOf(it.id).length : 0;
                       return _row(
                         selected: selected,
+                        // Companies: their purchase orders, under the name.
+                        below: !_isCompany
+                            ? null
+                            : ExcludeFocus(
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                    key: Key('pos_${it.id}'),
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                      ),
+                                    ),
+                                    onPressed: () => _openPos(context, it),
+                                    icon: const Icon(
+                                      Icons.assignment_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      pos == 0
+                                          ? 'Purchase orders (O)'
+                                          : '${plural(pos, 'purchase order', 'purchase orders')} (O)',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                         leading: CircleAvatar(
                           backgroundColor: AppColors.emptyBg,
                           child: Text(
@@ -413,6 +473,7 @@ Widget _row({
   required bool selected,
   required Widget leading,
   required String title,
+  Widget? below,
   Widget? trailing,
 }) => Card(
   margin: const EdgeInsets.only(bottom: 8),
@@ -430,6 +491,7 @@ Widget _row({
       title,
       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
     ),
+    subtitle: below,
     trailing: trailing,
   ),
 );

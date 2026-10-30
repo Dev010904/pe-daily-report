@@ -4,9 +4,12 @@ import '../data/store.dart';
 import '../logic/stock.dart';
 import '../models/day_data.dart';
 import '../models/gas.dart';
+import '../models/purchase_order.dart';
 import '../models/vehicle.dart';
 import '../util/dates.dart';
 import 'keys.dart';
+import 'po_field.dart';
+import 'purchase_orders_page.dart';
 import 'theme.dart';
 import 'vehicles_page.dart';
 import 'widgets.dart';
@@ -104,6 +107,9 @@ class DashboardTab extends StatelessWidget {
     final hasVehicles = store.vehicles.isNotEmpty;
     final papers = store.paperAlerts();
     final urgent = papers.where((a) => a.daysLeft <= 0).length;
+    final poAlerts = store.poAlerts();
+    final hasPos = store.poLines().isNotEmpty;
+    final poDone = poAlerts.where((l) => l.done).length;
 
     // Kept to a readable width on a big screen (nothing stretched far apart).
     return Align(
@@ -185,6 +191,22 @@ class DashboardTab extends StatelessWidget {
                     icon: Icons.local_shipping,
                     wide: wide,
                   ),
+                if (hasPos)
+                  _Stat(
+                    key: const Key('statPo'),
+                    label: 'Purchase orders supplied',
+                    value: '$poDone',
+                    sub: poAlerts.length > poDone
+                        ? '${poAlerts.length - poDone} almost done'
+                        : (poDone == 0 ? 'All POs have cylinders left' : null),
+                    color: poDone > 0
+                        ? AppColors.danger
+                        : (poAlerts.isEmpty
+                              ? AppColors.full
+                              : const Color(0xFFE65100)),
+                    icon: Icons.assignment_outlined,
+                    wide: wide,
+                  ),
                 if (loans.isNotEmpty)
                   _Stat(
                     key: const Key('statLoan'),
@@ -233,6 +255,46 @@ class DashboardTab extends StatelessWidget {
                           selected: selected,
                           index: i,
                         ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            if (poAlerts.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              _Section(
+                title: poDone == 0
+                    ? 'PURCHASE ORDERS - ALMOST DONE'
+                    : (poDone == poAlerts.length
+                          ? 'PURCHASE ORDERS - FULLY SUPPLIED'
+                          : 'PURCHASE ORDERS - FULLY / ALMOST SUPPLIED'),
+                count: poAlerts.length,
+                color: poDone > 0 ? AppColors.danger : const Color(0xFFE65100),
+                help:
+                    'Ask the company for a new PO. Enter = open its POs '
+                    '(Settings > Companies) to add the new one or remove the old.',
+                empty: '',
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: wide ? 760 : null,
+                    child: Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: KeyList(
+                        key: const Key('poAlerts'),
+                        itemCount: poAlerts.length,
+                        onOpen: (i) => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PurchaseOrdersPage(
+                              store: store,
+                              companyId: poAlerts[i].po.companyId,
+                            ),
+                          ),
+                        ),
+                        itemBuilder: (context, i, selected) =>
+                            _poRow(poAlerts[i], i, selected),
                       ),
                     ),
                   ),
@@ -378,6 +440,63 @@ class DashboardTab extends StatelessWidget {
 }
 
 extension on DashboardTab {
+  /// A PO gas that is (almost) all supplied.
+  Widget _poRow(PoLine l, int i, bool selected) {
+    final color = l.done ? AppColors.danger : const Color(0xFFE65100);
+    return Container(
+      key: Key('dashPo_${l.po.number}_${l.gas}'),
+      decoration: BoxDecoration(
+        color: selected
+            ? kSelectBg
+            : (i.isOdd ? const Color(0xFFF7F9FC) : null),
+        border: Border(
+          left: BorderSide(
+            color: selected ? kSelectLine : Colors.transparent,
+            width: 5,
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      child: Row(
+        children: [
+          Icon(Icons.assignment_outlined, color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${store.company(l.po.companyId)?.name ?? ''}  ·  PO ${l.po.number}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  '${gasLabel(l.gas)}: ${l.supplied} of ${l.ordered} supplied',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            l.done ? poLeftText(l.left).toUpperCase() : poLeftText(l.left),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// One plant + gas of loan cylinders: still to give back, and where they are.
   Widget _loanRow(Gas gas, LoanLine l, int i) {
     final cos = store.loanCompaniesFor(gas.code, l.plantId, date);

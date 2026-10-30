@@ -7,6 +7,7 @@ import '../models/gas.dart';
 import '../util/dates.dart';
 import 'entry_page.dart';
 import 'loan_text.dart';
+import 'po_field.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -73,6 +74,7 @@ class SupplyTab extends StatelessWidget {
             loanFull: loanTexts(store, day.entries[i].loanFull),
             loanEmpty: loanTexts(store, day.entries[i].loanEmpty),
             remarks: remarksText(day.entries[i].remarks, store: store),
+            po: poText(store, day.entries[i]),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -105,6 +107,9 @@ class EntryCard extends StatelessWidget {
 
   /// Line remarks as text ("" when none).
   final String remarks;
+
+  /// The purchase order(s) supplied against ("" when none).
+  final String po;
   const EntryCard({
     super.key,
     required this.index,
@@ -112,6 +117,7 @@ class EntryCard extends StatelessWidget {
     this.loanFull = const [],
     this.loanEmpty = const [],
     this.remarks = '',
+    this.po = '',
     required this.onTap,
     required this.onToggleBill,
   });
@@ -265,6 +271,33 @@ class EntryCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (po.isNotEmpty)
+              Container(
+                key: Key('po_${entry.id}'),
+                width: double.infinity,
+                color: const Color(0xFFF1F4F8),
+                padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.assignment_outlined,
+                      size: 16,
+                      color: AppColors.navy,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        po,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.navy,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (remarks.isNotEmpty)
               Container(
                 key: Key('remarks_${entry.id}'),

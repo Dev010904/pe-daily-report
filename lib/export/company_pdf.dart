@@ -4,6 +4,7 @@ import '../data/store.dart';
 import '../models/day_data.dart';
 import '../models/gas.dart';
 import '../util/dates.dart';
+import '../ui/po_field.dart';
 import 'pdf_kit.dart';
 
 String companyStatementFileName(String company, {String? from, String? to}) {
@@ -88,7 +89,7 @@ Future<List<int>> buildCompanyStatementPdf(
           decoration: stripe(rows.length),
           children: [
             cell(fmtDmy(parseDayKey(l.date))),
-            cell(e.challan.isEmpty ? '-' : e.challan),
+            cell(challanWithPo(store, e)),
             billCell(e, size: 9),
             for (final g in gases) ...[
               cell(
@@ -189,7 +190,7 @@ Future<List<int>> buildCompanyStatementPdf(
           decoration: stripe(rows.length),
           children: [
             cell(fmtDmy(parseDayKey(l.date))),
-            cell(e.challan.isEmpty ? '-' : e.challan),
+            cell(challanWithPo(store, e)),
             billCell(e, size: 9),
             cell(
               e.full.isEmpty
@@ -289,6 +290,7 @@ Future<List<int>> buildCompanyStatementPdf(
           children: rows,
         ),
         ..._loanPart(store, companyId, from: from, to: to),
+        ..._poPart(store, companyId),
         pw.Padding(
           padding: const pw.EdgeInsets.only(top: 6),
           child: pw.Text(
@@ -304,6 +306,54 @@ Future<List<int>> buildCompanyStatementPdf(
 
 /// Loan cylinders (borrowed from plants) with this company in the period:
 /// each supply / empty back and what they have after it. Empty when none.
+/// The company's purchase orders: ordered, supplied and left, gas by gas.
+List<pw.Widget> _poPart(AppStore store, String companyId) {
+  final lines = store.poLines(companyId: companyId);
+  if (lines.isEmpty) return const [];
+  return [
+    section('PURCHASE ORDERS'),
+    pw.Table(
+      border: thinBorder,
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      columnWidths: const {
+        0: pw.FlexColumnWidth(2),
+        1: pw.FlexColumnWidth(1.6),
+        2: pw.FlexColumnWidth(1),
+        3: pw.FlexColumnWidth(1),
+        4: pw.FlexColumnWidth(1.4),
+      },
+      children: [
+        pw.TableRow(
+          repeat: true,
+          decoration: pw.BoxDecoration(color: PdfC.head),
+          children: [
+            headCell('PO No.', align: pw.TextAlign.left),
+            headCell('Gas', align: pw.TextAlign.left),
+            headCell('Ordered'),
+            headCell('Supplied', color: PdfC.green),
+            headCell('Left'),
+          ],
+        ),
+        for (var i = 0; i < lines.length; i++)
+          pw.TableRow(
+            decoration: stripe(i),
+            children: [
+              cell(lines[i].po.number, bold: true, align: pw.TextAlign.left),
+              cell(gasLabel(lines[i].gas), align: pw.TextAlign.left),
+              cell('${lines[i].ordered}'),
+              cell('${lines[i].supplied}', bold: true, color: PdfC.green),
+              cell(
+                poLeftText(lines[i].left),
+                bold: true,
+                color: lines[i].done ? PdfC.red : PdfC.navy,
+              ),
+            ],
+          ),
+      ],
+    ),
+  ];
+}
+
 List<pw.Widget> _loanPart(
   AppStore store,
   String companyId, {
@@ -340,7 +390,7 @@ List<pw.Widget> _loanPart(
         decoration: stripe(rows.length),
         children: [
           cell(fmtDmy(parseDayKey(d.date))),
-          cell(d.entry.challan.isEmpty ? '-' : d.entry.challan),
+          cell(challanWithPo(store, d.entry)),
           cell(
             d.entry.loanFull.isEmpty ? '-' : loanLines(store, d.entry.loanFull),
             align: pw.TextAlign.left,

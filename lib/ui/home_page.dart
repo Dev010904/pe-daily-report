@@ -14,6 +14,7 @@ import 'damaged_page.dart';
 import 'dashboard_tab.dart';
 import 'entry_page.dart';
 import 'export_page.dart';
+import 'extra_full_page.dart';
 import 'filling_page.dart';
 import 'install_page.dart';
 import 'loan_page.dart';
@@ -221,6 +222,7 @@ class _HomePageState extends State<HomePage>
   void _filling() => _push(FillingPage(store: store, date: _key));
   void _opening() => _push(OpeningPage(store: store, date: _key));
   void _damaged() => _push(DamagedPage(store: store, date: _key));
+  void _extraFull() => _push(ExtraFullPage(store: store, date: _key));
   void _loan() => _push(LoanPage(store: store, date: _key));
   void _argonRemark() => editArgonStockRemark(context, store, _key);
   void _reports() => _push(ExportPage(store: store));
@@ -257,6 +259,7 @@ class _HomePageState extends State<HomePage>
     'f': _filling,
     'o': _opening,
     'x': _damaged,
+    'u': _extraFull,
     'b': _loan,
     'm': _argonRemark,
     'p': _dayPdf,
@@ -382,6 +385,12 @@ class _HomePageState extends State<HomePage>
       'Damaged Cylinders',
       icon: Icons.broken_image_outlined,
       action: _damaged,
+    ),
+    _MenuItem(
+      'U',
+      'Extra Full (empty found full)',
+      icon: Icons.published_with_changes,
+      action: _extraFull,
     ),
     _MenuItem(
       'B',
@@ -779,6 +788,7 @@ class _HomePageState extends State<HomePage>
       ('↑ ↓', 'Scroll'),
       ('F', 'Filling / Plant'),
       ('X', 'Damaged'),
+      ('U', 'Extra full'),
       ('B', 'Loan'),
       ('M', 'ARGON remark'),
       ('O', 'Opening stock'),
@@ -890,7 +900,10 @@ class _HomePageState extends State<HomePage>
                 ),
                 tabs: [
                   _tab(
-                    store.paperAlerts().isEmpty ? 'Dashboard' : '⚠ Dashboard',
+                    store.paperAlerts().isEmpty &&
+                            !store.poAlerts().any((l) => l.done)
+                        ? 'Dashboard'
+                        : '⚠ Dashboard',
                   ),
                   _tab(
                     entries.isEmpty ? 'Supply' : 'Supply (${entries.length})',

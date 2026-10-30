@@ -7,6 +7,7 @@ import '../models/day_data.dart';
 import '../models/gas.dart';
 import '../util/dates.dart';
 import '../ui/loan_text.dart';
+import '../ui/po_field.dart';
 import 'pdf_kit.dart';
 
 String dayPdfFileName(List<String> dates) {
@@ -33,6 +34,7 @@ Future<List<int>> buildDayPdf(AppStore store, List<String> dates) async {
           section('DAILY STOCK'),
           _stockTable(store, stock),
           ?_argonRemark(store, stock),
+          ?_extraFull(stock),
           if (stock.hasDamaged) _damaged(stock),
           _stockNote(stock),
           if (stock.hasLoans) ...[
@@ -85,7 +87,7 @@ pw.Widget _stockTable(AppStore store, StockDay stock) {
           cell('${r.sales}', color: r.sales > 0 ? null : PdfC.muted),
           pw.Container(
             color: PdfC.greenBg,
-            child: r.damagedFull == 0
+            child: r.damagedFull == 0 && r.extraFull == 0
                 ? cell('${r.closeFull}', bold: true, color: PdfC.green, size: 9)
                 : pw.Column(
                     children: [
@@ -96,12 +98,21 @@ pw.Widget _stockTable(AppStore store, StockDay stock) {
                         size: 9,
                         padding: const pw.EdgeInsets.only(top: 3),
                       ),
-                      cell(
-                        '(-${r.damagedFull} damaged)',
-                        color: PdfC.red,
-                        size: 6.5,
-                        padding: const pw.EdgeInsets.only(bottom: 2),
-                      ),
+                      if (r.extraFull != 0)
+                        cell(
+                          '(+${r.extraFull} extra full)',
+                          color: PdfC.green,
+                          size: 6.5,
+                          bold: true,
+                          padding: const pw.EdgeInsets.only(bottom: 2),
+                        ),
+                      if (r.damagedFull != 0)
+                        cell(
+                          '(-${r.damagedFull} damaged)',
+                          color: PdfC.red,
+                          size: 6.5,
+                          padding: const pw.EdgeInsets.only(bottom: 2),
+                        ),
                     ],
                   ),
           ),
@@ -208,6 +219,42 @@ pw.Widget _stockTable(AppStore store, StockDay stock) {
     },
     defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
     children: rows,
+  );
+}
+
+/// "Empty" cylinders found full today; null when none.
+pw.Widget? _extraFull(StockDay stock) {
+  final m = stock.extraFullToday;
+  if (m.isEmpty) return null;
+  return pw.Container(
+    margin: const pw.EdgeInsets.only(top: 4),
+    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+    decoration: pw.BoxDecoration(
+      color: PdfC.greenBg,
+      border: pw.Border.all(color: PdfC.green, width: 0.6),
+    ),
+    child: pw.RichText(
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(
+            text: 'EXTRA FULL (empty received, found full):  ',
+            style: pw.TextStyle(
+              fontSize: 8,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfC.green,
+            ),
+          ),
+          pw.TextSpan(
+            text: qtyLines(m, sep: ',  '),
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.TextSpan(
+            text: '   (taken off the empties, added to full stock)',
+            style: pw.TextStyle(fontSize: 7.5, color: PdfC.muted),
+          ),
+        ],
+      ),
+    ),
   );
 }
 
@@ -376,13 +423,16 @@ pw.Widget _damaged(StockDay stock) {
 pw.Widget _stockNote(StockDay stock) {
   final plants = stock.rows.any((r) => r.plantLines.isNotEmpty);
   final damaged = stock.hasDamaged;
+  final extra = stock.extraFullToday.isNotEmpty;
   return pw.Padding(
     padding: const pw.EdgeInsets.only(top: 3, bottom: 4),
     child: pw.Text(
-      'Closing Full = Opening + Filling - Sales${damaged ? ' - damaged' : ''}.   '
+      'Closing Full = Opening + Filling - Sales${damaged ? ' - damaged' : ''}'
+      '${extra ? ' + extra full' : ''}.   '
       'Empty (Godown) = yesterday\'s empty'
       '${plants ? ' - sent to plant' : ''} + empty received'
-      '${damaged ? ' - damaged + repaired' : ''}.'
+      '${damaged ? ' - damaged + repaired' : ''}'
+      '${extra ? ' - extra full' : ''}.'
       '${plants ? '   At plant = start + sent - filled back.' : ''}',
       style: pw.TextStyle(fontSize: 7, color: PdfC.muted),
     ),
@@ -434,7 +484,7 @@ List<pw.Widget> _supplyTable(AppStore store, DayData day) {
             align: pw.TextAlign.left,
           ),
           cell(qtyAndLoan(store, e.full, e.loanFull), align: pw.TextAlign.left),
-          cell(e.challan.isEmpty ? '-' : e.challan),
+          cell(challanWithPo(store, e)),
           empty(
             cell(
               qtyAndLoan(store, e.empty, e.loanEmpty),

@@ -4,11 +4,13 @@ import 'package:flutter/services.dart';
 import '../data/store.dart';
 import '../models/day_data.dart';
 import '../models/gas.dart';
+import '../models/purchase_order.dart';
 import '../util/dates.dart';
 import 'gas_lines.dart';
 import 'keys.dart';
 import 'loan_text.dart';
 import 'pick_field.dart';
+import 'po_field.dart';
 import 'stock_guard.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -21,6 +23,9 @@ import 'widgets.dart';
 /// While loan cylinders (borrowed from a plant) are out, a "Loan cylinders"
 /// list comes after the gas lines: loan full supplied / loan empty back,
 /// kept apart from our own cylinders.
+/// A company with purchase orders (Settings > Companies) gets a "PO No."
+/// box after Bill: each gas supplied counts against that PO when it has
+/// the gas, else against the company's PO for that gas.
 class EntryPage extends StatefulWidget {
   final AppStore store;
   final String date;
@@ -86,6 +91,15 @@ class _EntryPageState extends State<EntryPage> {
   final _challanNode = FocusNode(debugLabel: 'challan');
   bool _billed = false;
   final _billNode = FocusNode(debugLabel: 'bill');
+
+  /// The PO chosen (PO id, or kNoPo); null while the company has none.
+  String? _po;
+
+  /// The PO box was changed (else a saved entry keeps its PO links).
+  bool _poTouched = false;
+  Map<String, String> _oldPo = const {};
+  Map<String, String> _oldPoNo = const {};
+  final _poNode = FocusNode(debugLabel: 'po');
   late final GasLines _lines;
   final _linesKey = GlobalKey<GasLinesEditorState>();
 
@@ -131,6 +145,9 @@ class _EntryPageState extends State<EntryPage> {
       _sort = e.sort;
       _challan.text = e.challan;
       _billed = e.billed;
+      _oldPo = e.po;
+      _oldPoNo = e.poNo;
+      _po = _savedPo(e);
       for (final c in e.cash) {
         _cash.add(
           _CashLine(
@@ -156,6 +173,7 @@ class _EntryPageState extends State<EntryPage> {
     _challan.dispose();
     _challanNode.dispose();
     _billNode.dispose();
+    _poNode.dispose();
     _lines.dispose();
     _loan?.dispose();
     for (final c in _cash) {
@@ -243,13 +261,116 @@ class _EntryPageState extends State<EntryPage> {
       item = await store.addCompany(o.newName!);
       if (!mounted) return;
     }
+    final changed = item.id != _companyId;
     setState(() {
       _companyId = item!.id;
       _company = item.name;
       _companyText.text = item.name;
+      if (changed) {
+        _po = store.defaultPo(item.id);
+        _poTouched = !_isNew;
+      }
     });
     _touch();
     _focus(_challanNode);
+  }
+
+  // ----------------------------------------------------- purchase order
+
+  /// The PO in the box (a new entry starts with the company's current one).
+  String get _poNow =>
+      _po ?? (_isNew ? (store.defaultPo(_companyId) ?? kNoPo) : kNoPo);
+
+  /// The company has purchase orders: the PO box is shown.
+  bool get _showPo => store.hasPos(_companyId);
+
+  /// A saved entry's PO: the one its first gas went to (if still there),
+  /// "No PO" when it was saved without one.
+  String? _savedPo(Entry e) {
+    for (final g in kGases) {
+      final id = e.po[g.code];
+      if (id != null && store.po(id) != null) return id;
+    }
+    return store.hasPos(e.companyId) ? kNoPo : null;
+  }
+
+  /// Gases with full cylinders in this entry (own + loan).
+  Map<String, int> get _fullAll {
+    final m = Map.of(_full);
+    _loanFull.forEach((gas, byPlant) {
+      for (final v in byPlant.values) {
+        m[gas] = (m[gas] ?? 0) + v;
+      }
+    });
+    m.removeWhere((_, v) => v == 0);
+    return m;
+  }
+
+  /// Which PO each gas goes to. A saved entry whose PO box was not
+  /// changed keeps what it had.
+  Map<String, String> _poLinks() {
+    final gases = [
+      for (final g in kGases)
+        if (_fullAll.containsKey(g.code)) g.code,
+    ];
+    final auto = store.poLinksFor(
+      _companyId,
+      gases,
+      chosen: _poNow,
+      exceptEntry: _entryId,
+    );
+    if (_isNew || _poTouched) return auto;
+    return {
+      for (final g in gases)
+        if (_oldPo[g] != null)
+          g: _oldPo[g]!
+        else if (auto[g] != null)
+          g: auto[g]!,
+    };
+  }
+
+  Map<String, String> _poNumbers(Map<String, String> links) => {
+    for (final e in links.entries)
+      e.key: store.po(e.value)?.number ?? _oldPoNo[e.key] ?? '',
+  };
+
+  /// "Oxygen → PO 4500123 (52 left after this)" for each gas.
+  /// (gas, its PO and what is left, true when nothing is left).
+  List<(String, String, bool)> _poPlan() {
+    final links = _poLinks(), full = _fullAll;
+    final out = <(String, String, bool)>[];
+    for (final g in kGases) {
+      final qty = full[g.code];
+      if (qty == null) continue;
+      final id = links[g.code];
+      final p = id == null ? null : store.po(id);
+      if (p == null) {
+        final no = id == null ? '' : (_oldPoNo[g.code] ?? '');
+        out.add((g.label, no.isEmpty ? 'no PO' : 'PO $no', false));
+        continue;
+      }
+      final left = store.poLine(p, g.code, exceptEntry: _entryId).left - qty;
+      out.add((
+        g.label,
+        'PO ${p.number}  (${poLeftText(left)}${left > 0 ? ' after this' : ''})',
+        left <= 0,
+      ));
+    }
+    return out;
+  }
+
+  String get _poSummary {
+    final plan = _poPlan();
+    if (plan.isEmpty) return '';
+    return plan.map((x) => '${x.$1} → ${x.$2}').join(',  ');
+  }
+
+  void _afterBill() {
+    if (_showPo) {
+      _focus(_poNode);
+    } else {
+      _linesKey.currentState?.focusFirst();
+    }
   }
 
   // ---------------------------------------------------------------- loan
@@ -423,6 +544,7 @@ class _EntryPageState extends State<EntryPage> {
         loanFull: loanText(store, _loanFull),
         loanEmpty: loanText(store, _loanEmpty),
         remarks: remarksText(_remarks),
+        po: _showPo || _oldPo.isNotEmpty ? _poSummary : '',
         cash: cash!,
         oldDate: old ? widget.date : null,
       ),
@@ -441,6 +563,7 @@ class _EntryPageState extends State<EntryPage> {
     final cash = ready ?? _cashItems();
     if (!_check(cash)) return;
     final day = store.day(widget.date);
+    final links = _poLinks();
     final entry = Entry(
       id: _entryId ?? newId(),
       sort: _sort != 0 ? _sort : store.nextSort(),
@@ -455,6 +578,8 @@ class _EntryPageState extends State<EntryPage> {
       loanFull: _loanFull,
       loanEmpty: _loanEmpty,
       remarks: _remarks,
+      po: links,
+      poNo: _poNumbers(links),
     );
     final i = day.entries.indexWhere((x) => x.id == entry.id);
     if (i >= 0) {
@@ -486,6 +611,10 @@ class _EntryPageState extends State<EntryPage> {
         _challan.clear();
         _billed = false;
         _sort = 0;
+        _po = null;
+        _poTouched = false;
+        _oldPo = const {};
+        _oldPoNo = const {};
         _lines.load(const {});
         _loan?.load(const {});
         _cash.clear();
@@ -754,7 +883,7 @@ class _EntryPageState extends State<EntryPage> {
                       if (_askBill) {
                         _focus(_billNode);
                       } else {
-                        _linesKey.currentState?.focusFirst();
+                        _afterBill();
                       }
                     },
                     onEditingComplete: () {},
@@ -787,7 +916,7 @@ class _EntryPageState extends State<EntryPage> {
                         setState(() => _billed = v);
                         _touch();
                       },
-                      onEnter: () => _linesKey.currentState?.focusFirst(),
+                      onEnter: _afterBill,
                     ),
                   ),
                   if (wide) ...[
@@ -799,6 +928,67 @@ class _EntryPageState extends State<EntryPage> {
                       ),
                     ),
                   ],
+                ],
+              ),
+            ),
+          if (_showPo) _poRow(wide),
+        ],
+      ),
+    );
+  }
+
+  /// "PO No." and, under it, where each gas supplied goes.
+  Widget _poRow(bool wide) {
+    final plan = _poPlan();
+    return FocusRow(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _label('PO No.'),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: wide ? 320 : double.infinity,
+                    child: PoPickField(
+                      store: store,
+                      companyId: _companyId,
+                      value: _poNow,
+                      focusNode: _poNode,
+                      exceptEntry: _entryId,
+                      onPicked: (id) {
+                        setState(() {
+                          _po = id;
+                          _poTouched = true;
+                        });
+                        _touch();
+                        _linesKey.currentState?.focusFirst();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (plan.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(left: wide ? 130 : 0, top: 6),
+              child: Wrap(
+                spacing: 14,
+                runSpacing: 2,
+                children: [
+                  for (final x in plan)
+                    Text(
+                      '${x.$1} → ${x.$2}',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: x.$3 ? AppColors.danger : AppColors.navy,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1275,6 +1465,9 @@ class _Summary extends StatelessWidget {
 
   /// Line remarks as text ("" when none).
   final String remarks;
+
+  /// Where each gas goes ("" when the company has no POs).
+  final String po;
   final List<CashItem> cash;
   final String? oldDate;
 
@@ -1288,6 +1481,7 @@ class _Summary extends StatelessWidget {
     this.loanFull = '-',
     this.loanEmpty = '-',
     this.remarks = '',
+    this.po = '',
     required this.cash,
     this.oldDate,
   });
@@ -1363,6 +1557,7 @@ class _Summary extends StatelessWidget {
               color: AppColors.muted,
             ),
           line('Full supplied', _qty(full), color: AppColors.full),
+          if (po.isNotEmpty) line('Purchase order', po, color: AppColors.navy),
           line('Empty received', _qty(empty), color: AppColors.empty),
           if (loanFull != '-')
             line('LOAN full supplied', loanFull, color: AppColors.loan),

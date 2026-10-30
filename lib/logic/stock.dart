@@ -180,6 +180,10 @@ class StockRow {
   /// Damaged cylinders of this gas repaired today (back as empties).
   final int repaired;
 
+  /// "Empty" cylinders received that were found full: off the godown
+  /// empties, on to full stock.
+  final int extraFull;
+
   /// Damaged cylinders of this gas: at the start of the day (and without a
   /// hand correction), and at the end.
   final int damagedOpen;
@@ -214,6 +218,7 @@ class StockRow {
     this.damagedEmpty = 0,
     this.damagedFull = 0,
     this.repaired = 0,
+    this.extraFull = 0,
     this.damagedOpen = 0,
     this.autoDamagedOpen = 0,
     this.damagedClose = 0,
@@ -257,6 +262,9 @@ class StockRow {
     if (repaired != 0) {
       parts.add(CalcPart('+ $repaired', damaged: true, label: 'repaired'));
     }
+    if (extraFull != 0) {
+      parts.add(CalcPart('− $extraFull', extra: true, label: 'extra full'));
+    }
     if (!gas.isDA) {
       for (final x
           in (sentSteps.isEmpty && sentToPlant != 0
@@ -283,7 +291,9 @@ class StockRow {
         .map(
           (p) =>
               (ascii ? p.text.replaceAll('−', '-') : p.text) +
-              ((p.plant || p.damaged) && labelPlant ? ' (${p.label})' : ''),
+              ((p.plant || p.damaged || p.extra) && labelPlant
+                  ? ' (${p.label})'
+                  : ''),
         )
         .join(' ');
     return '$body = $closeGodown';
@@ -298,11 +308,15 @@ class CalcPart {
 
   /// Cylinders declared damaged, or damaged ones repaired.
   final bool damaged;
+
+  /// "Empty" ones found full (moved to full stock).
+  final bool extra;
   final String label;
   const CalcPart(
     this.text, {
     this.plant = false,
     this.damaged = false,
+    this.extra = false,
     this.label = 'plant',
   });
 }
@@ -351,6 +365,12 @@ class StockDay {
   Map<String, int> get repairedToday => {
     for (final r in rows)
       if (r.repaired != 0) r.gas.code: r.repaired,
+  };
+
+  /// "Empty" cylinders found full today, by gas.
+  Map<String, int> get extraFullToday => {
+    for (final r in rows)
+      if (r.extraFull != 0) r.gas.code: r.extraFull,
   };
   Map<String, int> get damagedStartBy => {
     for (final r in rows)
@@ -516,14 +536,22 @@ StockDay computeDay(
     final dmgOpen = d.openDamagedGas[gas.code] ?? p.damaged;
     final dmgClose = dmgOpen + dmgEmpty + dmgFull - rep;
 
+    final extra = d.extraFull[gas.code] ?? 0;
     final fill = direct + backTotal;
-    final closeFull = openFull + fill - sold - dmgFull;
+    final closeFull = openFull + fill - sold - dmgFull + extra;
     final int closeGodown;
     if (gas.isDA) {
-      closeGodown = openGodown - d.daEmptyGiven + got - dmgEmpty + rep;
+      closeGodown = openGodown - d.daEmptyGiven + got - dmgEmpty + rep - extra;
     } else {
       closeGodown =
-          openGodown - direct + got - sentTotal - oldDelta - dmgEmpty + rep;
+          openGodown -
+          direct +
+          got -
+          sentTotal -
+          oldDelta -
+          dmgEmpty +
+          rep -
+          extra;
     }
 
     final plantIds = {
@@ -624,6 +652,7 @@ StockDay computeDay(
         damagedEmpty: dmgEmpty,
         damagedFull: dmgFull,
         repaired: rep,
+        extraFull: extra,
         damagedOpen: dmgOpen,
         autoDamagedOpen: p.damaged,
         damagedClose: dmgClose,
@@ -762,7 +791,7 @@ List<StockProblem> newNegatives(
           StockProblem(
             date,
             r.gas,
-            '${r.gas.label} FULL: only ${r.openFull + r.fill} in stock, '
+            '${r.gas.label} FULL: only ${r.openFull + r.fill + r.extraFull} in stock, '
             'but ${used.isEmpty ? 'more used' : used.join(' + ')} '
             '(short by ${-r.closeFull}).',
           ),
@@ -771,7 +800,10 @@ List<StockProblem> newNegatives(
       if (r.closeGodown < 0 && r.closeGodown < was.closeGodown) {
         final String used;
         final int have;
-        final damaged = [if (r.damagedEmpty > 0) '${r.damagedEmpty} damaged'];
+        final damaged = [
+          if (r.damagedEmpty > 0) '${r.damagedEmpty} damaged',
+          if (r.extraFull > 0) '${r.extraFull} found full',
+        ];
         if (r.gas.isDA) {
           have = r.openGodown + r.received + r.repaired;
           used = [

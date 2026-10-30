@@ -9,6 +9,8 @@ import 'entry_page.dart';
 import 'gas_lines.dart';
 import 'keys.dart';
 import 'loan_text.dart';
+import 'po_field.dart';
+import 'purchase_orders_page.dart';
 import 'share.dart';
 import 'stock_guard.dart';
 import 'theme.dart';
@@ -289,6 +291,33 @@ class _CompanyPageState extends State<CompanyPage> {
                         ),
                       ),
                     ),
+                    // Purchase orders (changed only in Settings > Companies).
+                    if (store.hasPos(c.id)) ...[
+                      const SizedBox(height: 12),
+                      Card(
+                        key: const Key('companyPos'),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Purchase orders  (add / change in Settings > Companies)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.muted,
+                                ),
+                              ),
+                              for (final po in store.posOf(c.id))
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: PoProgress(store: store, po: po),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
@@ -328,6 +357,7 @@ class _CompanyPageState extends State<CompanyPage> {
                         loanFull: loanText(store, l.entry.loanFull),
                         loanEmpty: loanText(store, l.entry.loanEmpty),
                         remarks: remarksText(l.entry.remarks, store: store),
+                        po: poText(store, l.entry),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -421,12 +451,16 @@ class _LineCard extends StatelessWidget {
 
   /// Line remarks as text ("" when none).
   final String remarks;
+
+  /// The purchase order(s) supplied against ("" when none).
+  final String po;
   const _LineCard({
     required this.line,
     required this.onTap,
     this.loanFull = '-',
     this.loanEmpty = '-',
     this.remarks = '',
+    this.po = '',
   });
 
   @override
@@ -457,7 +491,8 @@ class _LineCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Challan ${e.challan.isEmpty ? '-' : e.challan}',
+                    'Challan ${e.challan.isEmpty ? '-' : e.challan}'
+                    '${po.isEmpty ? '' : '  ·  $po'}',
                     style: const TextStyle(
                       color: AppColors.muted,
                       fontWeight: FontWeight.w700,

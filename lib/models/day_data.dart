@@ -83,6 +83,12 @@ class Entry {
   /// "gas|plantId"), e.g. "ARGON SPL".
   Map<String, String> remarks;
 
+  /// The company's purchase order each gas supplied here counts against:
+  /// gas -> PO id, and the PO number as it was (still shown if the PO is
+  /// removed later). Own and loan full cylinders of that gas both count.
+  Map<String, String> po;
+  Map<String, String> poNo;
+
   /// Parts written by a newer version of the app, kept as they are.
   final Map<String, dynamic> _extra;
 
@@ -99,8 +105,12 @@ class Entry {
     PlantQty? loanFull,
     PlantQty? loanEmpty,
     Map<String, String>? remarks,
+    Map<String, String>? po,
+    Map<String, String>? poNo,
     Map<String, dynamic>? extra,
   }) : remarks = remarks ?? {},
+       po = po ?? {},
+       poNo = poNo ?? {},
        full = full ?? {},
        empty = empty ?? {},
        cash = cash ?? [],
@@ -135,8 +145,15 @@ class Entry {
     'loanFull',
     'loanEmpty',
     'remarks',
+    'po',
+    'poNo',
     'date',
   };
+
+  /// Full cylinders of [gas] supplied here (own + loan ones).
+  int fullOf(String gas) =>
+      (full[gas] ?? 0) +
+      (loanFull[gas]?.values.fold<int>(0, (a, b) => a + b) ?? 0);
 
   /// Stored form (the date is stored next to it).
   Map<String, dynamic> toJson() => {
@@ -152,6 +169,8 @@ class Entry {
     if (loanFull.isNotEmpty) 'loanFull': loanFull,
     if (loanEmpty.isNotEmpty) 'loanEmpty': loanEmpty,
     if (remarks.isNotEmpty) 'remarks': remarks,
+    if (po.isNotEmpty) 'po': po,
+    if (poNo.isNotEmpty) 'poNo': poNo,
   };
 
   factory Entry.fromJson(String id, Map<String, dynamic> j) => Entry(
@@ -175,6 +194,8 @@ class Entry {
           if (e.value is String && (e.value as String).trim().isNotEmpty)
             e.key.toString(): e.value as String,
     },
+    po: textMap(j['po']),
+    poNo: textMap(j['poNo']),
     extra: {
       for (final e in j.entries)
         if (!_known.contains(e.key)) e.key: e.value,
@@ -275,6 +296,10 @@ class DayData {
   PlantQty loanBackEmpty;
   PlantQty loanBackFull;
 
+  /// Cylinders that came back from companies as "empty" but were found
+  /// full: taken off the godown empties and added to full stock, by gas.
+  Map<String, int> extraFull;
+
   /// A note on a gas in the stock table (only ARGON has one, to keep count
   /// of ARGON SPL). It goes on to the next days until it is changed; ""
   /// means it was cleared on this day.
@@ -311,6 +336,7 @@ class DayData {
     PlantQty? loanIn,
     PlantQty? loanBackEmpty,
     PlantQty? loanBackFull,
+    Map<String, int>? extraFull,
     Map<String, String>? stockRemarks,
     Map<String, String>? fillingRemarks,
     Map<String, dynamic>? extra,
@@ -332,6 +358,7 @@ class DayData {
        loanIn = loanIn ?? {},
        loanBackEmpty = loanBackEmpty ?? {},
        loanBackFull = loanBackFull ?? {},
+       extraFull = extraFull ?? {},
        stockRemarks = stockRemarks ?? {},
        fillingRemarks = fillingRemarks ?? {},
        _extra = extra ?? {};
@@ -353,6 +380,7 @@ class DayData {
       loanIn.isEmpty &&
       loanBackEmpty.isEmpty &&
       loanBackFull.isEmpty &&
+      extraFull.isEmpty &&
       stockRemarks.isEmpty &&
       fillingRemarks.isEmpty &&
       _extra.isEmpty;
@@ -467,6 +495,7 @@ class DayData {
     'loanIn',
     'loanBackEmpty',
     'loanBackFull',
+    'extraFull',
     'stockRemarks',
     'fillingRemarks',
   };
@@ -501,6 +530,7 @@ class DayData {
     if (loanIn.isNotEmpty) 'loanIn': loanIn,
     if (loanBackEmpty.isNotEmpty) 'loanBackEmpty': loanBackEmpty,
     if (loanBackFull.isNotEmpty) 'loanBackFull': loanBackFull,
+    if (extraFull.isNotEmpty) 'extraFull': extraFull,
     if (stockRemarks.isNotEmpty) 'stockRemarks': stockRemarks,
     if (fillingRemarks.isNotEmpty) 'fillingRemarks': fillingRemarks,
   };
@@ -535,6 +565,7 @@ class DayData {
       loanIn: plantQty(j['loanIn']),
       loanBackEmpty: plantQty(j['loanBackEmpty']),
       loanBackFull: plantQty(j['loanBackFull']),
+      extraFull: intMap(j['extraFull']),
       // A cleared stock note ("") is a real value: it stops the old one.
       stockRemarks: textMap(j['stockRemarks'], keepEmpty: true),
       fillingRemarks: textMap(j['fillingRemarks']),

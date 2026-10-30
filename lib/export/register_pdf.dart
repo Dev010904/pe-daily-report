@@ -8,6 +8,7 @@ import '../models/gas.dart';
 import '../util/dates.dart';
 import 'company_pdf.dart';
 import '../ui/loan_text.dart';
+import '../ui/po_field.dart';
 import 'pdf_kit.dart';
 
 String registerPdfFileName(String from, String to) =>
@@ -34,6 +35,7 @@ Future<List<int>> buildRegisterPdf(
   final empty = <String, Map<String, int>>{};
   final fill = <String, Map<String, int>>{};
   final sent = <String, Map<String, int>>{};
+  final extra = <String, Map<String, int>>{};
   final cash = <String, (double, double)>{};
   var entries = 0, pending = 0;
   void add(Map<String, Map<String, int>> m, String month, Map<String, int> q) {
@@ -46,6 +48,7 @@ Future<List<int>> buildRegisterPdf(
     if (months.isEmpty || months.last != month) months.add(month);
     final day = store.day(d);
     add(fill, month, day.totalFilling);
+    add(extra, month, day.extraFull);
     day.plantSent.forEach(
       (gas, byPlant) =>
           add(sent, month, {gas: byPlant.values.fold(0, (a, b) => a + b)}),
@@ -70,6 +73,7 @@ Future<List<int>> buildRegisterPdf(
         empty,
         fill,
         sent,
+        extra,
       ].any((m) => m.values.any((q) => (q[g.code] ?? 0) != 0)))
         g,
   ];
@@ -154,6 +158,10 @@ Future<List<int>> buildRegisterPdf(
           if (sent.isNotEmpty) ...[
             section('EMPTY SENT TO FILLING PLANT - MONTH-WISE'),
             monthTable(sent),
+          ],
+          if (extra.values.any((q) => q.isNotEmpty)) ...[
+            section('EXTRA FULL (EMPTY RECEIVED, FOUND FULL) - MONTH-WISE'),
+            monthTable(extra),
           ],
           section('CASH RECEIVED - MONTH-WISE'),
           _cashTable(months, cash, monthName),
@@ -435,7 +443,7 @@ pw.Widget _register(AppStore store, List<String> dates) {
               bold: true,
               align: pw.TextAlign.left,
             ),
-            cell(e.challan.isEmpty ? '-' : e.challan),
+            cell(challanWithPo(store, e)),
             cell(
               qtyAndLoan(store, e.full, e.loanFull, sep: ',  '),
               align: pw.TextAlign.left,

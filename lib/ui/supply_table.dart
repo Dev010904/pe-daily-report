@@ -8,6 +8,7 @@ import 'keys.dart';
 import 'stock_guard.dart';
 import 'supply_tab.dart';
 import 'loan_text.dart';
+import 'po_field.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -281,6 +282,16 @@ class SupplyTable extends StatelessWidget {
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
+                                    if (poText(store, e).isNotEmpty)
+                                      Text(
+                                        poText(store, e),
+                                        key: Key('po_${e.id}'),
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.navy,
+                                        ),
+                                      ),
                                     if (e.remarks.isNotEmpty)
                                       Text(
                                         remarksText(e.remarks, store: store),
